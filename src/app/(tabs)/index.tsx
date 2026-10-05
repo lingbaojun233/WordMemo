@@ -1,0 +1,324 @@
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import {
+  Alert,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useApp } from '../../lib/AppContext';
+import { SAMPLE_WORDS } from '../../lib/sampleWords';
+import { dueWords, isMastered } from '../../lib/srs';
+import { colors, radius, spacing } from '../../lib/theme';
+import { Wordbook } from '../../lib/types';
+import { Button, EmptyState } from '../../components/ui';
+
+export default function HomeScreen() {
+  const { wordbooks, loaded, createBook, importWords } = useApp();
+  const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState<Wordbook | null>(null);
+
+  const handleCreate = (name: string, description?: string) => {
+    const id = createBook(name, description);
+    setShowCreate(false);
+    setEditing(null);
+    router.push(`/wordbook/${id}`);
+  };
+
+  const loadSample = () => {
+    const id = createBook('示例词库', '常用核心词汇（可删除）');
+    importWords(id, SAMPLE_WORDS.map((s) => ({ term: s.term, meaning: s.meaning })));
+    router.push(`/wordbook/${id}`);
+  };
+
+  const renderBook = ({ item }: { item: Wordbook }) => {
+    const total = item.words.length;
+    const due = dueWords(item.words).length;
+    const mastered = item.words.filter(isMastered).length;
+    const progress = total > 0 ? mastered / total : 0;
+
+    return (
+      <Pressable
+        style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
+        onPress={() => router.push(`/wordbook/${item.id}`)}
+        onLongPress={() => setEditing(item)}
+      >
+        <View style={styles.cardTop}>
+          <View style={styles.cardIcon}>
+            <Ionicons name="book" size={22} color={colors.primary} />
+          </View>
+          <View style={styles.cardInfo}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={styles.cardMeta}>
+              {total} 词{total > 0 ? ` · 已掌握 ${mastered}` : ''}
+            </Text>
+          </View>
+          {due > 0 ? (
+            <View style={styles.dueBadge}>
+              <Text style={styles.dueText}>待复习 {due}</Text>
+            </View>
+          ) : total > 0 ? (
+            <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+          ) : null}
+        </View>
+        {total > 0 ? (
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+          </View>
+        ) : null}
+      </Pressable>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      {loaded && wordbooks.length === 0 ? (
+        <EmptyState
+          icon="library-outline"
+          title="还没有单词本"
+          description="创建一个单词本，或先加载示例词库体验一下"
+        />
+      ) : (
+        <FlatList
+          data={wordbooks}
+          keyExtractor={(b) => b.id}
+          renderItem={renderBook}
+          contentContainerStyle={styles.listContent}
+          ListHeaderComponent={
+            <Text style={styles.hint}>长按单词本可重命名或删除</Text>
+          }
+        />
+      )}
+
+      {/* 底部操作区 */}
+      <View style={styles.footer}>
+        {loaded && wordbooks.length === 0 ? (
+          <View style={{ gap: 10 }}>
+            <Button label="新建单词本" icon="add" onPress={() => setShowCreate(true)} />
+            <Button
+              label="加载示例词库"
+              icon="sparkles"
+              variant="outline"
+              onPress={loadSample}
+            />
+          </View>
+        ) : (
+          <Button label="新建单词本" icon="add" onPress={() => setShowCreate(true)} />
+        )}
+      </View>
+
+      <CreateBookModal
+        visible={showCreate || editing !== null}
+        book={editing}
+        onClose={() => {
+          setShowCreate(false);
+          setEditing(null);
+        }}
+        onCreate={handleCreate}
+      />
+    </View>
+  );
+}
+
+function CreateBookModal({
+  visible,
+  book,
+  onClose,
+  onCreate,
+}: {
+  visible: boolean;
+  book: Wordbook | null;
+  onClose: () => void;
+  onCreate: (name: string, description?: string) => void;
+}) {
+  const { renameBook, deleteBook } = useApp();
+
+  const submit = (name: string, desc: string) => {
+    const n = name.trim();
+    if (!n) return;
+    if (book) {
+      renameBook(book.id, n);
+      onClose();
+    } else {
+      onCreate(n, desc.trim() || undefined);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!book) return;
+    Alert.alert(
+      '删除单词本',
+      `确定删除「${book.name}」吗？其中 ${book.words.length} 个单词将一并删除。`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '删除',
+          style: 'destructive',
+          onPress: () => {
+            deleteBook(book.id);
+            onClose();
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <BookForm
+            key={visible ? book?.id ?? 'new' : 'closed'}
+            book={book}
+            onSubmit={submit}
+            onCancel={onClose}
+            onDelete={handleDelete}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function BookForm({
+  book,
+  onSubmit,
+  onCancel,
+  onDelete,
+}: {
+  book: Wordbook | null;
+  onSubmit: (name: string, desc: string) => void;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  const [name, setName] = useState(book?.name ?? '');
+  const [desc, setDesc] = useState(book?.description ?? '');
+
+  return (
+    <>
+      <Text style={styles.modalTitle}>
+        {book ? '重命名单词本' : '新建单词本'}
+      </Text>
+      <TextInput
+        style={styles.input}
+        placeholder="单词本名称（如：CET-4 核心词）"
+        placeholderTextColor={colors.textLight}
+        value={name}
+        onChangeText={setName}
+        autoFocus
+        maxLength={40}
+      />
+      <TextInput
+        style={[styles.input, styles.inputDesc]}
+        placeholder="备注（可选）"
+        placeholderTextColor={colors.textLight}
+        value={desc}
+        onChangeText={setDesc}
+        maxLength={80}
+      />
+      <View style={styles.modalActions}>
+        <Button label="取消" variant="ghost" onPress={onCancel} style={{ flex: 1 }} />
+        <Button
+          label="确定"
+          onPress={() => onSubmit(name, desc)}
+          disabled={!name.trim()}
+          style={{ flex: 1 }}
+        />
+      </View>
+      {book ? (
+        <Button
+          label="删除单词本"
+          variant="danger"
+          icon="trash"
+          onPress={onDelete}
+          style={{ marginTop: spacing.md }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
+  listContent: { padding: spacing.md, paddingBottom: 120 },
+  hint: {
+    fontSize: 12,
+    color: colors.textLight,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cardTop: { flexDirection: 'row', alignItems: 'center' },
+  cardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  cardInfo: { flex: 1 },
+  cardTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
+  cardMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  dueBadge: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  dueText: { fontSize: 12, fontWeight: '600', color: '#B45309' },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+    marginTop: spacing.md,
+    overflow: 'hidden',
+  },
+  progressFill: { height: 6, borderRadius: 3, backgroundColor: colors.success },
+  footer: {
+    position: 'absolute',
+    left: spacing.md,
+    right: spacing.md,
+    bottom: spacing.lg,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.text,
+    backgroundColor: '#fff',
+    marginBottom: spacing.md,
+  },
+  inputDesc: { minHeight: 48, textAlignVertical: 'top' },
+  modalActions: { flexDirection: 'row', gap: spacing.md },
+});
