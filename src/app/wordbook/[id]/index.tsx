@@ -129,37 +129,40 @@ export default function WordbookDetailScreen() {
         ) : null}
       </View>
 
-      {/* AI 阅读 */}
-      <Button
-        label="AI 短文阅读 · 生成短文记忆单词"
-        icon="sparkles"
-        onPress={() => router.push(`/wordbook/${book.id}/reading`)}
-        style={{ marginHorizontal: spacing.md, marginTop: spacing.md }}
-      />
-
-      {/* 操作按钮 */}
-      <View style={styles.actions}>
-        <ActionButton
-          label="背诵"
+      {/* 学习方式 */}
+      <View style={styles.learnSection}>
+        <Button
+          label="AI 短文阅读"
+          icon="sparkles"
+          onPress={() => router.push(`/wordbook/${book.id}/reading`)}
+        />
+        <Button
+          label="背诵（选对释义）"
           icon="albums"
-          color={colors.primary}
+          variant="outline"
           disabled={book.words.length === 0}
           onPress={() => router.push(`/wordbook/${book.id}/study`)}
         />
-        <ActionButton
-          label="测验"
-          icon="create"
-          color={colors.accent}
-          disabled={book.words.length === 0}
-          onPress={() => router.push(`/wordbook/${book.id}/quiz`)}
-        />
-        <ActionButton
-          label="导入"
-          icon="download"
-          color={colors.success}
-          onPress={() => router.push(`/wordbook/${book.id}/import`)}
-        />
-        <ActionButton label="添加" icon="add" color="#0EA5E9" onPress={openAdd} />
+      </View>
+
+      {/* 单词管理 */}
+      <View style={styles.manageSection}>
+        <Text style={styles.sectionLabel}>单词管理</Text>
+        <View style={styles.manageRow}>
+          <Button
+            label="导入"
+            icon="download"
+            variant="outline"
+            onPress={() => router.push(`/wordbook/${book.id}/import`)}
+            style={{ flex: 1 }}
+          />
+          <Button
+            label="添加单词"
+            icon="add"
+            onPress={openAdd}
+            style={{ flex: 1 }}
+          />
+        </View>
       </View>
 
       {/* 单词列表 */}
@@ -204,36 +207,6 @@ export default function WordbookDetailScreen() {
   );
 }
 
-function ActionButton({
-  label,
-  icon,
-  color,
-  disabled,
-  onPress,
-}: {
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  disabled?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.actionBtn,
-        { backgroundColor: `${color}14` },
-        disabled && { opacity: 0.4 },
-        pressed && { opacity: 0.7 },
-      ]}
-      onPress={onPress}
-      disabled={disabled}
-    >
-      <Ionicons name={icon} size={20} color={color} />
-      <Text style={[styles.actionLabel, { color }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   searchWrap: {
@@ -248,21 +221,22 @@ const styles = StyleSheet.create({
     height: 44,
   },
   searchInput: { flex: 1, paddingHorizontal: 8, fontSize: 16, color: colors.text },
-  actions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
+  learnSection: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.md,
+    gap: spacing.sm,
   },
-  actionBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.md,
-    paddingVertical: 12,
-    gap: 4,
+  manageSection: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
   },
-  actionLabel: { fontSize: 13, fontWeight: '600' },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textLight,
+    marginBottom: spacing.sm,
+  },
+  manageRow: { flexDirection: 'row', gap: spacing.md },
   wordRow: {
     flexDirection: 'row',
     alignItems: 'center',

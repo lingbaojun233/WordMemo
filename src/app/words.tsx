@@ -34,7 +34,7 @@ type Entry = {
 };
 
 export default function AllWordsScreen() {
-  const { wordbooks, markKnown } = useApp();
+  const { wordbooks } = useApp();
   const [query, setQuery] = useState('');
   const [stage, setStage] = useState<StageFilter>('all');
   const [level, setLevel] = useState<LevelFilter>('all');
@@ -146,7 +146,6 @@ export default function AllWordsScreen() {
           hasDerivatives={hasDerivatives}
           expanded={isOpen}
           onToggle={hasDerivatives ? () => toggleExpand(key) : undefined}
-          onKnow={() => markKnown(item.term, item.meaning, item.level)}
         />
         {hasDerivatives && isOpen ? (
           <View style={styles.derivList}>
@@ -158,7 +157,6 @@ export default function AllWordsScreen() {
                 level={item.level}
                 box={boxOf(d.term)}
                 isDerivative
-                onKnow={() => markKnown(d.term, d.meaning, item.level)}
               />
             ))}
           </View>
@@ -208,7 +206,7 @@ export default function AllWordsScreen() {
       </View>
 
       <View style={styles.legendRow}>
-        <Text style={styles.legendText}>点击「认识」提升记忆等级：</Text>
+        <Text style={styles.legendText}>记忆等级图例：</Text>
         {boxColors.map((c, i) => (
           <View key={i} style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: c }]} />
@@ -242,7 +240,6 @@ function WordRow({
   expanded,
   isDerivative,
   onToggle,
-  onKnow,
 }: {
   term: string;
   meaning: string;
@@ -252,7 +249,6 @@ function WordRow({
   expanded?: boolean;
   isDerivative?: boolean;
   onToggle?: () => void;
-  onKnow: () => void;
 }) {
   const lvColor = LEVEL_COLORS[level];
   const boxColor = boxColors[Math.max(0, Math.min(boxColors.length - 1, box))];
@@ -284,20 +280,6 @@ function WordRow({
         <View style={[styles.boxDot, { backgroundColor: boxColor }]} />
         <Text style={[styles.boxText, { color: boxColor }]}>{boxLabel(box)}</Text>
       </View>
-
-      <Pressable
-        style={({ pressed }) => [
-          styles.knowBtn,
-          box >= MAX_BOX && styles.knowBtnDone,
-          pressed && { opacity: 0.7 },
-        ]}
-        onPress={onKnow}
-      >
-        <Ionicons name={box >= MAX_BOX ? 'checkmark' : 'thumbs-up-outline'} size={14} color={box >= MAX_BOX ? colors.success : colors.primary} />
-        <Text style={[styles.knowText, box >= MAX_BOX && { color: colors.success }]}>
-          {box >= MAX_BOX ? '已学会' : '认识'}
-        </Text>
-      </Pressable>
     </View>
   );
 }
@@ -389,18 +371,6 @@ const styles = StyleSheet.create({
   },
   boxDot: { width: 8, height: 8, borderRadius: 4 },
   boxText: { fontSize: 11, fontWeight: '700' },
-  knowBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  knowBtnDone: { borderColor: colors.success },
-  knowText: { fontSize: 12, fontWeight: '600', color: colors.primary },
   derivList: {
     marginLeft: spacing.lg,
     marginTop: -spacing.xs,
