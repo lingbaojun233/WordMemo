@@ -98,10 +98,30 @@ export default function AllWordsScreen() {
       if (stage === 'learning' && !(box > 0 && box < MAX_BOX)) return false;
       if (stage === 'mastered' && box < MAX_BOX) return false;
       if (level !== 'all' && e.level !== level) return false;
-      if (q && !e.term.toLowerCase().includes(q)) return false;
+      if (q) {
+        // 搜索同时匹配基本词与派生词的单词和释义
+        const hitBase =
+          e.term.toLowerCase().includes(q) || e.meaning.toLowerCase().includes(q);
+        const hitDeriv = e.derivatives.some(
+          (d) => d.term.toLowerCase().includes(q) || d.meaning.toLowerCase().includes(q)
+        );
+        if (!hitBase && !hitDeriv) return false;
+      }
       return true;
     });
   }, [entries, stage, level, query, progressMap]);
+
+  // 派生「是否展开」：手动展开，或搜索命中派生词时自动展开
+  const isExpanded = (e: Entry): boolean => {
+    const key = e.term.toLowerCase();
+    if (expanded.has(key)) return true;
+    const q = query.trim().toLowerCase();
+    if (!q) return false;
+    if (e.term.toLowerCase().includes(q)) return false; // 基本词已命中，无需自动展开
+    return e.derivatives.some(
+      (d) => d.term.toLowerCase().includes(q) || d.meaning.toLowerCase().includes(q)
+    );
+  };
 
   const toggleExpand = (term: string) => {
     setExpanded((prev) => {
@@ -115,7 +135,7 @@ export default function AllWordsScreen() {
   const renderEntry = ({ item }: { item: Entry }) => {
     const hasDerivatives = item.derivatives.length > 0;
     const key = item.term.toLowerCase();
-    const isOpen = expanded.has(key);
+    const isOpen = isExpanded(item);
     return (
       <View>
         <WordRow
