@@ -60,12 +60,18 @@ type Action =
   | { type: 'REVIEW_WORD'; bookId: string; wordId: string; result: ReviewResult }
   | { type: 'RESET_BOOK_PROGRESS'; bookId: string };
 
+type ProgressState = Pick<
+  Word,
+  'box' | 'dueAt' | 'correctCount' | 'wrongCount' | 'lastReviewedAt'
+>;
+
 function buildWord(partial: {
   term: string;
   meaning: string;
   phonetic?: string;
   example?: string;
   createdAt?: number;
+  progress?: ProgressState | null;
 }): Word {
   return {
     id: uid(),
@@ -73,12 +79,59 @@ function buildWord(partial: {
     meaning: partial.meaning.trim(),
     phonetic: partial.phonetic?.trim(),
     example: partial.example?.trim(),
-    box: 0,
-    dueAt: 0,
-    correctCount: 0,
-    wrongCount: 0,
+    box: partial.progress?.box ?? 0,
+    dueAt: partial.progress?.dueAt ?? 0,
+    correctCount: partial.progress?.correctCount ?? 0,
+    wrongCount: partial.progress?.wrongCount ?? 0,
+    lastReviewedAt: partial.progress?.lastReviewedAt,
     createdAt: partial.createdAt ?? Date.now(),
   };
+}
+
+// 在所有单词本中查找某个单词（按词形，不区分大小写）的学习进度，用于跨词库共享
+function progressFor(books: Wordbook[], term: string): ProgressState | null {
+  const t = term.trim().toLowerCase();
+  for (const b of books) {
+    for (const w of b.words) {
+      if (w.term.toLowerCase() === t) {
+        return {
+          box: w.box,
+          dueAt: w.dueAt,
+          correctCount: w.correctCount,
+          wrongCount: w.wrongCount,
+          lastReviewedAt: w.lastReviewedAt,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+// 启动时按词形对齐历史进度：同一单词在所有词库中取“最佳进度”并统一
+function reconcileProgress(books: Wordbook[]): Wordbook[] {
+  const best = new Map<string, ProgressState>();
+  for (const b of books) {
+    for (const w of b.words) {
+      const t = w.term.toLowerCase();
+      const cur = best.get(t);
+      if (!cur || w.box > cur.box || (w.box === cur.box && w.correctCount > cur.correctCount)) {
+        best.set(t, {
+          box: w.box,
+          dueAt: w.dueAt,
+          correctCount: w.correctCount,
+          wrongCount: w.wrongCount,
+          lastReviewedAt: w.lastReviewedAt,
+        });
+      }
+    }
+  }
+  return books.map((b) => ({
+    ...b,
+    words: b.words.map((w) => {
+      const p = best.get(w.term.toLowerCase());
+      return p ? { ...w, ...p } : w;
+    }),
+  }));
 }
 
 function reducer(state: State, action: Action): State {
@@ -193,40 +246,62 @@ function reducer(state: State, action: Action): State {
 
     case 'REVIEW_WORD': {
       const now = Date.now();
+      // 找到被复习的单词，计算新进度
+      let term = '';
+      let newProgress: ProgressState | null = null;
+      outer: for (const b of state.wordbooks) {
+        for (const w of b.words) {
+          if (w.id === action.wordId) {
+            const updated = applyReview(w, action.result, now);
+            term = w.term.toLowerCase();
+            newProgress = {
+              box: updated.box,
+              dueAt: updated.dueAt,
+              correctCount: updated.correctCount,
+              wrongCount: updated.wrongCount,
+              lastReviewedAt: updated.lastReviewedAt,
+            };
+            break outer;
+          }
+        }
+      }
+      if (!newProgress) return state;
+      // 同步进度到所有词库中相同的单词
       return {
         ...state,
-        wordbooks: state.wordbooks.map((b) =>
-          b.id === action.bookId
-            ? {
-                ...b,
-                words: b.words.map((w) =>
-                  w.id === action.wordId ? applyReview(w, action.result, now) : w
-                ),
-              }
-            : b
-        ),
+        wordbooks: state.wordbooks.map((b) => ({
+          ...b,
+          words: b.words.map((w) =>
+            w.term.toLowerCase() === term ? { ...w, ...newProgress } : w
+          ),
+        })),
       };
     }
 
-    case 'RESET_BOOK_PROGRESS':
+    case 'RESET_BOOK_PROGRESS': {
+      const book = state.wordbooks.find((b) => b.id === action.bookId);
+      if (!book) return state;
+      const terms = new Set(book.words.map((w) => w.term.toLowerCase()));
+      // 重置进度时，同步重置所有词库中相同的单词
       return {
         ...state,
-        wordbooks: state.wordbooks.map((b) =>
-          b.id === action.bookId
-            ? {
-                ...b,
-                words: b.words.map((w) => ({
+        wordbooks: state.wordbooks.map((b) => ({
+          ...b,
+          words: b.words.map((w) =>
+            terms.has(w.term.toLowerCase())
+              ? {
                   ...w,
                   box: 0,
                   dueAt: 0,
                   correctCount: 0,
                   wrongCount: 0,
                   lastReviewedAt: undefined,
-                })),
-              }
-            : b
-        ),
+                }
+              : w
+          ),
+        })),
       };
+    }
 
     default:
       return state;
@@ -283,7 +358,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const users = await loadUsers();
       const sessionId = await loadSessionUserId();
       const currentUser = users.find((u) => u.id === sessionId) ?? null;
-      const wordbooks = currentUser ? await loadWordbooks(currentUser.id) : [];
+      const wordbooks = currentUser
+        ? reconcileProgress(await loadWordbooks(currentUser.id))
+        : [];
       dispatch({ type: 'INIT', users, currentUser, wordbooks });
     })();
   }, []);
@@ -324,7 +401,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await saveUsers(users);
       await saveSessionUserId(user.id);
 
-      const books = await loadWordbooks(user.id);
+      const books = reconcileProgress(await loadWordbooks(user.id));
       dispatch({ type: 'SET_USER', user, users, wordbooks: books });
       return { ok: true, user };
     },
@@ -345,7 +422,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       await saveSessionUserId(user.id);
-      const books = await loadWordbooks(user.id);
+      const books = reconcileProgress(await loadWordbooks(user.id));
       dispatch({
         type: 'SET_USER',
         user,
@@ -377,17 +454,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const bookId = uid();
     const now = Date.now();
-    const words: Word[] = def.words.map((w) => ({
-      id: uid(),
-      term: w.t,
-      meaning: w.m,
-      derivatives: w.d ? w.d.map((x) => ({ term: x.t, meaning: x.m })) : undefined,
-      box: 0,
-      dueAt: 0,
-      correctCount: 0,
-      wrongCount: 0,
-      createdAt: now,
-    }));
+    const words: Word[] = def.words.map((w) => {
+      // 若该单词已在其他词库学过，继承其学习进度
+      const progress = progressFor(stateRef.current.wordbooks, w.t);
+      return {
+        id: uid(),
+        term: w.t,
+        meaning: w.m,
+        derivatives: w.d ? w.d.map((x) => ({ term: x.t, meaning: x.m })) : undefined,
+        box: progress?.box ?? 0,
+        dueAt: progress?.dueAt ?? 0,
+        correctCount: progress?.correctCount ?? 0,
+        wrongCount: progress?.wrongCount ?? 0,
+        lastReviewedAt: progress?.lastReviewedAt,
+        createdAt: now,
+      };
+    });
     dispatch({
       type: 'ADD_BUILTIN_BOOK',
       bookId,
@@ -414,7 +496,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       bookId: string,
       word: { term: string; meaning: string; phonetic?: string; example?: string }
     ) => {
-      dispatch({ type: 'ADD_WORD', bookId, word: buildWord(word) });
+      const progress = progressFor(stateRef.current.wordbooks, word.term);
+      dispatch({ type: 'ADD_WORD', bookId, word: buildWord({ ...word, progress }) });
     },
     []
   );
@@ -442,8 +525,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const key = e.term.toLowerCase();
       if (existing.has(key)) continue;
       existing.add(key);
+      // 若该单词已在其他词库学过，继承其学习进度
+      const progress = progressFor(stateRef.current.wordbooks, e.term);
       toAdd.push(
-        buildWord({ term: e.term, meaning: e.meaning, createdAt: now })
+        buildWord({ term: e.term, meaning: e.meaning, createdAt: now, progress })
       );
     }
     if (toAdd.length > 0) {
