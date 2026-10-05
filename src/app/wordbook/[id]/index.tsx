@@ -12,7 +12,7 @@ import {
 import { useApp } from '../../../lib/AppContext';
 import { boxColors, colors, radius, spacing } from '../../../lib/theme';
 import { Word } from '../../../lib/types';
-import { EmptyState } from '../../../components/ui';
+import { Button, EmptyState } from '../../../components/ui';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { WordDraft, WordEditorModal } from '../../../components/WordEditorModal';
 export default function WordbookDetailScreen() {
@@ -122,6 +122,14 @@ export default function WordbookDetailScreen() {
           </Pressable>
         ) : null}
       </View>
+
+      {/* AI 阅读 */}
+      <Button
+        label="AI 短文阅读 · 生成短文记忆单词"
+        icon="sparkles"
+        onPress={() => router.push(`/wordbook/${book.id}/reading`)}
+        style={{ marginHorizontal: spacing.md, marginTop: spacing.md }}
+      />
 
       {/* 操作按钮 */}
       <View style={styles.actions}>

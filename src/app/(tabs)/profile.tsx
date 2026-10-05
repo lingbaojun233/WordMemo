@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../lib/AppContext';
 import { colors, radius, spacing } from '../../lib/theme';
 import { formatDate } from '../../lib/utils';
@@ -53,13 +54,29 @@ export default function ProfileScreen() {
         </Text>
       </View>
 
+      <View style={styles.menuCard}>
+        <MenuRow
+          icon="settings-outline"
+          label="学习设置"
+          desc="AI Key、每日篇数/词数、词汇水平"
+          onPress={() => router.push('/settings')}
+        />
+        <View style={styles.menuDivider} />
+        <MenuRow
+          icon="clipboard-outline"
+          label="词汇水平测验"
+          desc="检测你的词汇量，用于生成可读的短文"
+          onPress={() => router.push('/level-test')}
+        />
+      </View>
+
       <Button
         label="退出登录"
         variant="outline"
         icon="log-out-outline"
         loading={loggingOut}
         onPress={() => setShowLogoutConfirm(true)}
-        style={{ borderColor: colors.danger }}
+        style={{ borderColor: colors.danger, marginTop: spacing.md }}
         textStyle={{ color: colors.danger }}
       />
 
@@ -73,6 +90,29 @@ export default function ProfileScreen() {
         onCancel={() => setShowLogoutConfirm(false)}
       />
     </ScrollView>
+  );
+}
+
+function MenuRow({
+  icon,
+  label,
+  desc,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  desc: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={({ pressed }) => [styles.menuRow, pressed && { opacity: 0.7 }]} onPress={onPress}>
+      <Ionicons name={icon} size={22} color={colors.primary} />
+      <View style={styles.menuBody}>
+        <Text style={styles.menuLabel}>{label}</Text>
+        <Text style={styles.menuDesc}>{desc}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textLight} />
+    </Pressable>
   );
 }
 
@@ -113,4 +153,21 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   infoText: { flex: 1, fontSize: 13, color: colors.primaryDark, lineHeight: 19 },
+  menuCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  menuBody: { flex: 1 },
+  menuLabel: { fontSize: 15, fontWeight: '600', color: colors.text },
+  menuDesc: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  menuDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: spacing.md },
 });
