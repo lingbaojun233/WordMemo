@@ -1,9 +1,30 @@
-import { Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, ColorValue, Pressable, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from '../lib/AppContext';
 import { colors } from '../lib/theme';
+
+function BackButton({ tintColor }: { tintColor?: ColorValue }) {
+  const color = tintColor ?? colors.text;
+  return (
+    <Pressable
+      onPress={() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/');
+        }
+      }}
+      hitSlop={8}
+      style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 8 }}
+    >
+      <Ionicons name="chevron-back" size={22} color={color} />
+      <Text style={{ fontSize: 16, color }}>返回</Text>
+    </Pressable>
+  );
+}
 
 function RootNavigator() {
   const { isLoggedIn, authReady } = useApp();
@@ -33,6 +54,8 @@ function RootNavigator() {
           headerTitleStyle: { fontWeight: '600' },
           headerShadowVisible: false,
           contentStyle: { backgroundColor: colors.bg },
+          // 统一的自定义返回按钮，保证所有进入的页面都能返回
+          headerLeft: ({ tintColor }) => <BackButton tintColor={tintColor} />,
         }}
       >
         {/* 已登录：主界面 */}
@@ -44,18 +67,26 @@ function RootNavigator() {
           <Stack.Screen name="level-test" options={{ title: '词汇水平测验' }} />
           <Stack.Screen name="wordbook/[id]/index" options={{ title: '单词本' }} />
           <Stack.Screen name="wordbook/[id]/reading" options={{ title: 'AI 短文阅读' }} />
-          <Stack.Screen name="wordbook/[id]/study" options={{ title: '背诵', headerBackTitle: '返回' }} />
-          <Stack.Screen name="wordbook/[id]/quiz" options={{ title: '拼写测验', headerBackTitle: '返回' }} />
-          <Stack.Screen name="wordbook/[id]/import" options={{ title: '批量导入', headerBackTitle: '返回' }} />
+          <Stack.Screen name="wordbook/[id]/study" options={{ title: '背诵' }} />
+          <Stack.Screen name="wordbook/[id]/quiz" options={{ title: '拼写测验' }} />
+          <Stack.Screen name="wordbook/[id]/import" options={{ title: '批量导入' }} />
         </Stack.Protected>
 
         {/* 未登录：登录/注册 */}
         <Stack.Protected guard={!isLoggedIn}>
           <Stack.Screen name="login" options={{ headerShown: false }} />
-          <Stack.Screen name="register" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="register"
+            options={{
+              title: '注册',
+              headerStyle: { backgroundColor: colors.primary },
+              headerTintColor: '#fff',
+              headerShadowVisible: false,
+            }}
+          />
         </Stack.Protected>
       </Stack>
-      <StatusBar style="dark" />
+      <StatusBar style={isLoggedIn ? 'dark' : 'light'} />
     </>
   );
 }
