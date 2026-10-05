@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -16,17 +15,26 @@ import { dueWords, isMastered } from '../../lib/srs';
 import { colors, radius, spacing } from '../../lib/theme';
 import { Wordbook } from '../../lib/types';
 import { Button, EmptyState } from '../../components/ui';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 export default function HomeScreen() {
-  const { wordbooks, loaded, createBook } = useApp();
+  const { wordbooks, loaded, createBook, deleteBook } = useApp();
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<Wordbook | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Wordbook | null>(null);
 
   const handleCreate = (name: string, description?: string) => {
     const id = createBook(name, description);
     setShowCreate(false);
     setEditing(null);
     router.push(`/wordbook/${id}`);
+  };
+
+  const confirmDelete = () => {
+    if (deleteTarget) {
+      deleteBook(deleteTarget.id);
+    }
+    setDeleteTarget(null);
   };
 
   const renderBook = ({ item }: { item: Wordbook }) => {
@@ -36,37 +44,42 @@ export default function HomeScreen() {
     const progress = total > 0 ? mastered / total : 0;
 
     return (
-      <Pressable
-        style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
-        onPress={() => router.push(`/wordbook/${item.id}`)}
-        onLongPress={() => setEditing(item)}
-      >
-        <View style={styles.cardTop}>
-          <View style={styles.cardIcon}>
-            <Ionicons name="book" size={22} color={colors.primary} />
-          </View>
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {item.name}
-            </Text>
-            <Text style={styles.cardMeta}>
-              {total} 词{total > 0 ? ` · 已掌握 ${mastered}` : ''}
-            </Text>
-          </View>
-          {due > 0 ? (
-            <View style={styles.dueBadge}>
-              <Text style={styles.dueText}>待复习 {due}</Text>
+      <View style={styles.cardWrap}>
+        <Pressable
+          style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
+          onPress={() => router.push(`/wordbook/${item.id}`)}
+          onLongPress={() => setEditing(item)}
+        >
+          <View style={styles.cardTop}>
+            <View style={styles.cardIcon}>
+              <Ionicons name="book" size={22} color={colors.primary} />
             </View>
-          ) : total > 0 ? (
-            <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-          ) : null}
-        </View>
-        {total > 0 ? (
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <Text style={styles.cardMeta}>
+                {total} 词 · 已掌握 {mastered}
+                {total > 0 ? (due > 0 ? ` · 待复习 ${due}` : ' · 已完成') : ''}
+              </Text>
+            </View>
           </View>
-        ) : null}
-      </Pressable>
+          {total > 0 ? (
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+            </View>
+          ) : null}
+        </Pressable>
+
+        {/* 删除按钮（与卡片分离，避免与点击事件冲突） */}
+        <Pressable
+          style={({ pressed }) => [styles.trashBtn, pressed && { backgroundColor: '#FEE2E2' }]}
+          onPress={() => setDeleteTarget(item)}
+          hitSlop={8}
+        >
+          <Ionicons name="trash-outline" size={18} color={colors.textLight} />
+        </Pressable>
+      </View>
     );
   };
 
@@ -85,7 +98,7 @@ export default function HomeScreen() {
           renderItem={renderBook}
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={
-            <Text style={styles.hint}>长按单词本可重命名或删除</Text>
+            <Text style={styles.hint}>点卡片进入 · 长按重命名 · 点垃圾桶删除</Text>
           }
         />
       )}
@@ -118,6 +131,16 @@ export default function HomeScreen() {
         }}
         onCreate={handleCreate}
       />
+
+      <ConfirmDialog
+        visible={deleteTarget !== null}
+        title="删除单词本"
+        message={`确定删除「${deleteTarget?.name ?? ''}」吗？其中 ${deleteTarget?.words.length ?? 0} 个单词将一并删除，且无法恢复。`}
+        confirmLabel="删除"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </View>
   );
 }
@@ -133,7 +156,7 @@ function CreateBookModal({
   onClose: () => void;
   onCreate: (name: string, description?: string) => void;
 }) {
-  const { renameBook, deleteBook } = useApp();
+  const { renameBook } = useApp();
 
   const submit = (name: string, desc: string) => {
     const n = name.trim();
@@ -146,25 +169,6 @@ function CreateBookModal({
     }
   };
 
-  const handleDelete = () => {
-    if (!book) return;
-    Alert.alert(
-      '删除单词本',
-      `确定删除「${book.name}」吗？其中 ${book.words.length} 个单词将一并删除。`,
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '删除',
-          style: 'destructive',
-          onPress: () => {
-            deleteBook(book.id);
-            onClose();
-          },
-        },
-      ]
-    );
-  };
-
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -174,7 +178,6 @@ function CreateBookModal({
             book={book}
             onSubmit={submit}
             onCancel={onClose}
-            onDelete={handleDelete}
           />
         </View>
       </View>
@@ -186,12 +189,10 @@ function BookForm({
   book,
   onSubmit,
   onCancel,
-  onDelete,
 }: {
   book: Wordbook | null;
   onSubmit: (name: string, desc: string) => void;
   onCancel: () => void;
-  onDelete: () => void;
 }) {
   const [name, setName] = useState(book?.name ?? '');
   const [desc, setDesc] = useState(book?.description ?? '');
@@ -227,15 +228,6 @@ function BookForm({
           style={{ flex: 1 }}
         />
       </View>
-      {book ? (
-        <Button
-          label="删除单词本"
-          variant="danger"
-          icon="trash"
-          onPress={onDelete}
-          style={{ marginTop: spacing.md }}
-        />
-      ) : null}
     </>
   );
 }
@@ -249,11 +241,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     paddingHorizontal: spacing.xs,
   },
+  cardWrap: { position: 'relative', marginBottom: spacing.md },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.md,
-    marginBottom: spacing.md,
+    paddingRight: 48,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -270,13 +263,16 @@ const styles = StyleSheet.create({
   cardInfo: { flex: 1 },
   cardTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   cardMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  dueBadge: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  trashBtn: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  dueText: { fontSize: 12, fontWeight: '600', color: '#B45309' },
   progressTrack: {
     height: 6,
     borderRadius: 3,

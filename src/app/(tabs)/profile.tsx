@@ -1,30 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../lib/AppContext';
 import { colors, radius, spacing } from '../../lib/theme';
 import { formatDate } from '../../lib/utils';
 import { Button } from '../../components/ui';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 export default function ProfileScreen() {
   const { currentUser, wordbooks, logout } = useApp();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const totalWords = wordbooks.reduce((s, b) => s + b.words.length, 0);
 
-  const confirmLogout = () => {
-    Alert.alert('退出登录', '确定要退出当前账号吗？进度仍会保留在本地，下次登录可继续。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '退出',
-        style: 'destructive',
-        onPress: async () => {
-          setLoggingOut(true);
-          await logout();
-          // logout 后由 Stack.Protected 自动回到登录页
-        },
-      },
-    ]);
+  const confirmLogout = async () => {
+    setShowLogoutConfirm(false);
+    setLoggingOut(true);
+    await logout();
+    // logout 后由 Stack.Protected 自动回到登录页
   };
 
   return (
@@ -64,9 +58,19 @@ export default function ProfileScreen() {
         variant="outline"
         icon="log-out-outline"
         loading={loggingOut}
-        onPress={confirmLogout}
+        onPress={() => setShowLogoutConfirm(true)}
         style={{ borderColor: colors.danger }}
         textStyle={{ color: colors.danger }}
+      />
+
+      <ConfirmDialog
+        visible={showLogoutConfirm}
+        title="退出登录"
+        message="确定要退出当前账号吗？进度仍会保留在本地，下次登录可继续。"
+        confirmLabel="退出"
+        danger
+        onConfirm={confirmLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
       />
     </ScrollView>
   );

@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
-  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -14,6 +13,7 @@ import { useApp } from '../../../lib/AppContext';
 import { boxColors, colors, radius, spacing } from '../../../lib/theme';
 import { Word } from '../../../lib/types';
 import { EmptyState } from '../../../components/ui';
+import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { WordDraft, WordEditorModal } from '../../../components/WordEditorModal';
 export default function WordbookDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,6 +23,7 @@ export default function WordbookDetailScreen() {
   const [query, setQuery] = useState('');
   const [showEditor, setShowEditor] = useState(false);
   const [editingWord, setEditingWord] = useState<Word | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Word | null>(null);
 
   const words = useMemo(() => {
     if (!book) return [];
@@ -63,18 +64,18 @@ export default function WordbookDetailScreen() {
     setShowEditor(false);
   };
 
-  const confirmDelete = (w: Word) => {
-    Alert.alert('删除单词', `确定删除「${w.term}」吗？`, [
-      { text: '取消', style: 'cancel' },
-      { text: '删除', style: 'destructive', onPress: () => deleteWord(book.id, w.id) },
-    ]);
+  const confirmDelete = () => {
+    if (deleteTarget) {
+      deleteWord(book.id, deleteTarget.id);
+    }
+    setDeleteTarget(null);
   };
 
   const renderWord = ({ item }: { item: Word }) => (
     <Pressable
       style={({ pressed }) => [styles.wordRow, pressed && { backgroundColor: colors.primaryLight }]}
       onPress={() => openEdit(item)}
-      onLongPress={() => confirmDelete(item)}
+      onLongPress={() => setDeleteTarget(item)}
     >
       <View style={[styles.boxDot, { backgroundColor: boxColors[item.box] ?? colors.textLight }]} />
       <View style={styles.wordBody}>
@@ -174,6 +175,16 @@ export default function WordbookDetailScreen() {
         word={editingWord}
         onClose={() => setShowEditor(false)}
         onSubmit={handleSubmit}
+      />
+
+      <ConfirmDialog
+        visible={deleteTarget !== null}
+        title="删除单词"
+        message={`确定删除「${deleteTarget?.term ?? ''}」吗？`}
+        confirmLabel="删除"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </View>
   );
