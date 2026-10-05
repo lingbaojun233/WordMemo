@@ -38,7 +38,7 @@ export default function BuiltinScreen() {
         return (
           <View key={b.key} style={styles.card}>
             <View style={styles.icon}>
-              <Text style={styles.iconText}>{b.key === 'cet4' ? '4' : '6'}</Text>
+              <Text style={styles.iconText}>{levelShort(b.key)}</Text>
             </View>
             <View style={styles.info}>
               <Text style={styles.name}>{b.name}</Text>
@@ -66,11 +66,22 @@ export default function BuiltinScreen() {
       <View style={styles.noteCard}>
         <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
         <Text style={styles.noteText}>
-          词库数据来自开源四六级大纲词汇，仅保存在本地。添加后可在首页的单词本中查看。
+          词库数据来自开源大纲词汇，仅保存在本地。添加后可在首页的单词本中查看，也可在「全部单词」中按级别筛选。
         </Text>
       </View>
     </ScrollView>
   );
+}
+
+function levelShort(key: BuiltinBookKey): string {
+  switch (key) {
+    case 'elementary': return '小';
+    case 'junior': return '初';
+    case 'senior': return '高';
+    case 'cet4': return '4';
+    case 'cet6': return '6';
+    default: return '?';
+  }
 }
 
 const styles = StyleSheet.create({

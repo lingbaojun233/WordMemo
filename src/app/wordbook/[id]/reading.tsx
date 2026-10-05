@@ -153,15 +153,15 @@ export default function ReadingScreen() {
     // 更新记忆进度
     const w = targetWords.find((x) => x.term.toLowerCase() === q.term.toLowerCase());
     if (w) reviewWord(book.id, w.id, isCorrect ? 'good' : 'again');
-  };
-
-  const nextQuiz = () => {
-    if (quizIdx + 1 < quiz.length) {
-      setQuizIdx(quizIdx + 1);
-      setPicked(null);
-    } else {
-      setPhase('result');
-    }
+    // 选完后短暂显示对错，自动进入下一题
+    setTimeout(() => {
+      if (quizIdx + 1 < quiz.length) {
+        setQuizIdx(quizIdx + 1);
+        setPicked(null);
+      } else {
+        setPhase('result');
+      }
+    }, 800);
   };
 
   // ---------- 各阶段渲染 ----------
@@ -312,16 +312,6 @@ export default function ReadingScreen() {
             );
           })}
         </View>
-
-        {picked ? (
-          <View style={styles.bottomBtn}>
-            <Button
-              label={quizIdx + 1 >= quiz.length ? '查看结果' : '下一题'}
-              icon="arrow-forward"
-              onPress={nextQuiz}
-            />
-          </View>
-        ) : null}
       </View>
     );
   }

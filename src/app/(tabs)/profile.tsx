@@ -56,6 +56,13 @@ export default function ProfileScreen() {
 
       <View style={styles.menuCard}>
         <MenuRow
+          icon="albums-outline"
+          label="全部单词"
+          desc="查看所有单词，按背诵阶段和级别筛选"
+          onPress={() => router.push('/words')}
+        />
+        <View style={styles.menuDivider} />
+        <MenuRow
           icon="settings-outline"
           label="学习设置"
           desc="AI Key、每日篇数/词数、词汇水平"

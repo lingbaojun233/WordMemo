@@ -56,6 +56,7 @@ function extractJson(content: string): unknown {
 }
 
 const LEVEL_DESC: Record<string, string> = {
+  elementary: '小学及以下',
   junior: '初中及以下',
   senior: '高中（高考）及以下',
   cet4: '四级及以下',

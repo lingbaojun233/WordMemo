@@ -39,6 +39,7 @@ function RootNavigator() {
         <Stack.Protected guard={isLoggedIn}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="builtin" options={{ title: '内置词库' }} />
+          <Stack.Screen name="words" options={{ title: '全部单词' }} />
           <Stack.Screen name="settings" options={{ title: '学习设置' }} />
           <Stack.Screen name="level-test" options={{ title: '词汇水平测验' }} />
           <Stack.Screen name="wordbook/[id]/index" options={{ title: '单词本' }} />

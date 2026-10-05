@@ -462,6 +462,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         term: w.t,
         meaning: w.m,
         derivatives: w.d ? w.d.map((x) => ({ term: x.t, meaning: x.m })) : undefined,
+        level: key,
         box: progress?.box ?? 0,
         dueAt: progress?.dueAt ?? 0,
         correctCount: progress?.correctCount ?? 0,
