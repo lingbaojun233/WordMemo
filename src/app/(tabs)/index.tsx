@@ -12,14 +12,13 @@ import {
   View,
 } from 'react-native';
 import { useApp } from '../../lib/AppContext';
-import { SAMPLE_WORDS } from '../../lib/sampleWords';
 import { dueWords, isMastered } from '../../lib/srs';
 import { colors, radius, spacing } from '../../lib/theme';
 import { Wordbook } from '../../lib/types';
 import { Button, EmptyState } from '../../components/ui';
 
 export default function HomeScreen() {
-  const { wordbooks, loaded, createBook, importWords } = useApp();
+  const { wordbooks, loaded, createBook } = useApp();
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<Wordbook | null>(null);
 
@@ -27,12 +26,6 @@ export default function HomeScreen() {
     const id = createBook(name, description);
     setShowCreate(false);
     setEditing(null);
-    router.push(`/wordbook/${id}`);
-  };
-
-  const loadSample = () => {
-    const id = createBook('示例词库', '常用核心词汇（可删除）');
-    importWords(id, SAMPLE_WORDS.map((s) => ({ term: s.term, meaning: s.meaning })));
     router.push(`/wordbook/${id}`);
   };
 
@@ -83,7 +76,7 @@ export default function HomeScreen() {
         <EmptyState
           icon="library-outline"
           title="还没有单词本"
-          description="创建一个单词本，或先加载示例词库体验一下"
+          description="从内置词库添加四级/六级词汇，或创建自己的单词本"
         />
       ) : (
         <FlatList
@@ -99,19 +92,21 @@ export default function HomeScreen() {
 
       {/* 底部操作区 */}
       <View style={styles.footer}>
-        {loaded && wordbooks.length === 0 ? (
-          <View style={{ gap: 10 }}>
-            <Button label="新建单词本" icon="add" onPress={() => setShowCreate(true)} />
-            <Button
-              label="加载示例词库"
-              icon="sparkles"
-              variant="outline"
-              onPress={loadSample}
-            />
-          </View>
-        ) : (
-          <Button label="新建单词本" icon="add" onPress={() => setShowCreate(true)} />
-        )}
+        <View style={styles.footerRow}>
+          <Button
+            label="内置词库"
+            icon="library"
+            variant="outline"
+            onPress={() => router.push('/builtin')}
+            style={{ flex: 1 }}
+          />
+          <Button
+            label="新建"
+            icon="add"
+            onPress={() => setShowCreate(true)}
+            style={{ flex: 1 }}
+          />
+        </View>
       </View>
 
       <CreateBookModal
@@ -296,6 +291,7 @@ const styles = StyleSheet.create({
     right: spacing.md,
     bottom: spacing.lg,
   },
+  footerRow: { flexDirection: 'row', gap: spacing.md },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',

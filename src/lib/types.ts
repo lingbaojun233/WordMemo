@@ -16,6 +16,7 @@ export type Wordbook = {
   id: string;
   name: string;
   description?: string;
+  builtinKey?: string; // 若为内置词库，记录其 key（如 'cet4'）
   createdAt: number;
   words: Word[];
 };

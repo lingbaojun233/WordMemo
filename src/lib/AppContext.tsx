@@ -28,6 +28,7 @@ import {
   saveSessionUserId,
   saveUsers,
 } from '../lib/authStorage';
+import { BuiltinBookKey, getBuiltinBook } from '../data/builtinBooks';
 
 type State = {
   users: User[];
@@ -42,6 +43,14 @@ type Action =
   | { type: 'SET_USER'; user: User; users: User[]; wordbooks: Wordbook[] }
   | { type: 'LOGOUT' }
   | { type: 'CREATE_BOOK'; id: string; name: string; description?: string }
+  | {
+      type: 'ADD_BUILTIN_BOOK';
+      bookId: string;
+      name: string;
+      description: string;
+      builtinKey: string;
+      words: Word[];
+    }
   | { type: 'RENAME_BOOK'; id: string; name: string }
   | { type: 'DELETE_BOOK'; id: string }
   | { type: 'ADD_WORD'; bookId: string; word: Word }
@@ -107,6 +116,18 @@ function reducer(state: State, action: Action): State {
         description: action.description?.trim(),
         createdAt: Date.now(),
         words: [],
+      };
+      return { ...state, wordbooks: [book, ...state.wordbooks] };
+    }
+
+    case 'ADD_BUILTIN_BOOK': {
+      const book: Wordbook = {
+        id: action.bookId,
+        name: action.name,
+        description: action.description,
+        builtinKey: action.builtinKey,
+        createdAt: Date.now(),
+        words: action.words,
       };
       return { ...state, wordbooks: [book, ...state.wordbooks] };
     }
@@ -225,6 +246,7 @@ type AppContextValue = {
   login: (username: string, password: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
   createBook: (name: string, description?: string) => string;
+  addBuiltinBook: (key: BuiltinBookKey) => string | null;
   renameBook: (id: string, name: string) => void;
   deleteBook: (id: string) => void;
   addWord: (
@@ -346,6 +368,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return id;
   }, []);
 
+  const addBuiltinBook = useCallback((key: BuiltinBookKey): string | null => {
+    const def = getBuiltinBook(key);
+    if (!def) return null;
+    // 已添加过该内置词库则不重复添加
+    if (stateRef.current.wordbooks.some((b) => b.builtinKey === key)) {
+      return null;
+    }
+    const bookId = uid();
+    const now = Date.now();
+    const words: Word[] = def.words.map((w) => ({
+      id: uid(),
+      term: w.t,
+      meaning: w.m,
+      box: 0,
+      dueAt: 0,
+      correctCount: 0,
+      wrongCount: 0,
+      createdAt: now,
+    }));
+    dispatch({
+      type: 'ADD_BUILTIN_BOOK',
+      bookId,
+      name: def.name,
+      description: def.description,
+      builtinKey: key,
+      words,
+    });
+    return bookId;
+  }, []);
+
   const renameBook = useCallback(
     (id: string, name: string) => dispatch({ type: 'RENAME_BOOK', id, name }),
     []
@@ -422,6 +474,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       createBook,
+      addBuiltinBook,
       renameBook,
       deleteBook,
       addWord,
@@ -441,6 +494,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       createBook,
+      addBuiltinBook,
       renameBook,
       deleteBook,
       addWord,

@@ -38,6 +38,7 @@ function RootNavigator() {
         {/* 已登录：主界面 */}
         <Stack.Protected guard={isLoggedIn}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="builtin" options={{ title: '内置词库' }} />
           <Stack.Screen name="wordbook/[id]/index" options={{ title: '单词本' }} />
           <Stack.Screen name="wordbook/[id]/study" options={{ title: '背诵', headerBackTitle: '返回' }} />
           <Stack.Screen name="wordbook/[id]/quiz" options={{ title: '拼写测验', headerBackTitle: '返回' }} />
