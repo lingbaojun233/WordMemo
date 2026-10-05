@@ -12,14 +12,35 @@ import { applyReview } from '../lib/srs';
 import { loadWordbooks, saveWordbooks } from '../lib/storage';
 import { uid } from '../lib/utils';
 import { ParsedEntry } from '../lib/parse';
+import {
+  AuthResult,
+  User,
+  generateSalt,
+  hashPassword,
+  newUserId,
+  validatePassword,
+  validateUsername,
+} from '../lib/auth';
+import {
+  clearSession,
+  loadSessionUserId,
+  loadUsers,
+  saveSessionUserId,
+  saveUsers,
+} from '../lib/authStorage';
 
 type State = {
+  users: User[];
+  currentUser: User | null;
   wordbooks: Wordbook[];
-  loaded: boolean;
+  authReady: boolean; // 用户与会话加载完成
+  dataLoaded: boolean; // 当前用户的词库加载完成
 };
 
 type Action =
-  | { type: 'LOADED'; wordbooks: Wordbook[] }
+  | { type: 'INIT'; users: User[]; currentUser: User | null; wordbooks: Wordbook[] }
+  | { type: 'SET_USER'; user: User; users: User[]; wordbooks: Wordbook[] }
+  | { type: 'LOGOUT' }
   | { type: 'CREATE_BOOK'; id: string; name: string; description?: string }
   | { type: 'RENAME_BOOK'; id: string; name: string }
   | { type: 'DELETE_BOOK'; id: string }
@@ -53,8 +74,31 @@ function buildWord(partial: {
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
-    case 'LOADED':
-      return { wordbooks: action.wordbooks, loaded: true };
+    case 'INIT':
+      return {
+        users: action.users,
+        currentUser: action.currentUser,
+        wordbooks: action.wordbooks,
+        authReady: true,
+        dataLoaded: true,
+      };
+
+    case 'SET_USER':
+      return {
+        users: action.users,
+        currentUser: action.user,
+        wordbooks: action.wordbooks,
+        authReady: true,
+        dataLoaded: true,
+      };
+
+    case 'LOGOUT':
+      return {
+        ...state,
+        currentUser: null,
+        wordbooks: [],
+        dataLoaded: true,
+      };
 
     case 'CREATE_BOOK': {
       const book: Wordbook = {
@@ -171,8 +215,15 @@ function reducer(state: State, action: Action): State {
 type ImportResult = { added: number; skipped: number };
 
 type AppContextValue = {
+  users: User[];
+  currentUser: User | null;
   wordbooks: Wordbook[];
-  loaded: boolean;
+  authReady: boolean;
+  isLoggedIn: boolean;
+  loaded: boolean; // 当前用户词库是否已加载
+  register: (username: string, password: string) => Promise<AuthResult>;
+  login: (username: string, password: string) => Promise<AuthResult>;
+  logout: () => Promise<void>;
   createBook: (name: string, description?: string) => string;
   renameBook: (id: string, name: string) => void;
   deleteBook: (id: string) => void;
@@ -191,27 +242,103 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, {
+    users: [],
+    currentUser: null,
     wordbooks: [],
-    loaded: false,
+    authReady: false,
+    dataLoaded: false,
   });
 
-  // 让回调始终能读到最新状态（用于去重等需要在派发前计算的逻辑）
+  // 让回调始终能读到最新状态
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
+  // 启动时加载用户与会话
   useEffect(() => {
-    loadWordbooks().then((books) => dispatch({ type: 'LOADED', wordbooks: books }));
+    (async () => {
+      const users = await loadUsers();
+      const sessionId = await loadSessionUserId();
+      const currentUser = users.find((u) => u.id === sessionId) ?? null;
+      const wordbooks = currentUser ? await loadWordbooks(currentUser.id) : [];
+      dispatch({ type: 'INIT', users, currentUser, wordbooks });
+    })();
   }, []);
 
+  // 词库变化时按当前用户保存
   useEffect(() => {
-    if (state.loaded) {
-      saveWordbooks(state.wordbooks).catch((e) =>
+    if (state.currentUser && state.dataLoaded) {
+      saveWordbooks(state.currentUser.id, state.wordbooks).catch((e) =>
         console.warn('保存词库失败', e)
       );
     }
-  }, [state.wordbooks, state.loaded]);
+  }, [state.currentUser, state.wordbooks, state.dataLoaded]);
+
+  const register = useCallback(
+    async (username: string, password: string): Promise<AuthResult> => {
+      const nameError = validateUsername(username);
+      if (nameError) return { ok: false, error: nameError };
+      const passError = validatePassword(password);
+      if (passError) return { ok: false, error: passError };
+
+      const u = username.trim();
+      const exists = stateRef.current.users.some(
+        (x) => x.username.toLowerCase() === u.toLowerCase()
+      );
+      if (exists) return { ok: false, error: '用户名已被注册' };
+
+      const salt = await generateSalt();
+      const passwordHash = await hashPassword(salt, password);
+      const user: User = {
+        id: newUserId(),
+        username: u,
+        passwordHash,
+        salt,
+        createdAt: Date.now(),
+      };
+
+      const users = [...stateRef.current.users, user];
+      await saveUsers(users);
+      await saveSessionUserId(user.id);
+
+      const books = await loadWordbooks(user.id);
+      dispatch({ type: 'SET_USER', user, users, wordbooks: books });
+      return { ok: true, user };
+    },
+    []
+  );
+
+  const login = useCallback(
+    async (username: string, password: string): Promise<AuthResult> => {
+      const u = username.trim();
+      const user = stateRef.current.users.find(
+        (x) => x.username.toLowerCase() === u.toLowerCase()
+      );
+      if (!user) return { ok: false, error: '用户名或密码错误' };
+
+      const hash = await hashPassword(user.salt, password);
+      if (hash !== user.passwordHash) {
+        return { ok: false, error: '用户名或密码错误' };
+      }
+
+      await saveSessionUserId(user.id);
+      const books = await loadWordbooks(user.id);
+      dispatch({
+        type: 'SET_USER',
+        user,
+        users: stateRef.current.users,
+        wordbooks: books,
+      });
+      return { ok: true, user };
+    },
+    []
+  );
+
+  const logout = useCallback(async () => {
+    await clearSession();
+    dispatch({ type: 'LOGOUT' });
+  }, []);
 
   const createBook = useCallback((name: string, description?: string) => {
     const id = uid();
@@ -263,11 +390,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (existing.has(key)) continue;
       existing.add(key);
       toAdd.push(
-        buildWord({
-          term: e.term,
-          meaning: e.meaning,
-          createdAt: now,
-        })
+        buildWord({ term: e.term, meaning: e.meaning, createdAt: now })
       );
     }
     if (toAdd.length > 0) {
@@ -289,8 +412,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AppContextValue>(
     () => ({
+      users: state.users,
+      currentUser: state.currentUser,
       wordbooks: state.wordbooks,
-      loaded: state.loaded,
+      authReady: state.authReady,
+      isLoggedIn: state.currentUser !== null,
+      loaded: state.dataLoaded,
+      register,
+      login,
+      logout,
       createBook,
       renameBook,
       deleteBook,
@@ -302,8 +432,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       resetBookProgress,
     }),
     [
+      state.users,
+      state.currentUser,
       state.wordbooks,
-      state.loaded,
+      state.authReady,
+      state.dataLoaded,
+      register,
+      login,
+      logout,
       createBook,
       renameBook,
       deleteBook,

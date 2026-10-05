@@ -1,11 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Wordbook } from './types';
 
-const STORAGE_KEY = 'wordmemo:wordbooks:v1';
+const KEY_PREFIX = 'wordmemo:wordbooks:v1';
 
-export async function loadWordbooks(): Promise<Wordbook[]> {
+// 每个用户的词库数据使用独立的存储 key，避免用户之间进度串号
+function keyFor(userId: string): string {
+  return `${KEY_PREFIX}:${userId}`;
+}
+
+export async function loadWordbooks(userId: string): Promise<Wordbook[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const raw = await AsyncStorage.getItem(keyFor(userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as Wordbook[]) : [];
@@ -15,10 +20,6 @@ export async function loadWordbooks(): Promise<Wordbook[]> {
   }
 }
 
-export async function saveWordbooks(books: Wordbook[]): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(books));
-}
-
-export async function clearWordbooks(): Promise<void> {
-  await AsyncStorage.removeItem(STORAGE_KEY);
+export async function saveWordbooks(userId: string, books: Wordbook[]): Promise<void> {
+  await AsyncStorage.setItem(keyFor(userId), JSON.stringify(books));
 }
