@@ -381,6 +381,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       id: uid(),
       term: w.t,
       meaning: w.m,
+      derivatives: w.d ? w.d.map((x) => ({ term: x.t, meaning: x.m })) : undefined,
       box: 0,
       dueAt: 0,
       correctCount: 0,

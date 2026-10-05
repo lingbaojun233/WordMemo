@@ -178,6 +178,16 @@ export default function StudyScreen() {
         {flipped ? (
           <>
             <Text style={styles.cardMeaning}>{current.meaning}</Text>
+            {current.derivatives && current.derivatives.length > 0 ? (
+              <View style={styles.derivBox}>
+                <Text style={styles.derivTitle}>派生词</Text>
+                {current.derivatives.map((d) => (
+                  <Text key={d.term} style={styles.derivItem}>
+                    <Text style={styles.derivTerm}>{d.term}</Text>  {d.meaning}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
             {current.example ? (
               <Text style={styles.cardExample}>{current.example}</Text>
             ) : null}
@@ -338,6 +348,25 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     lineHeight: 22,
   },
+  derivBox: {
+    marginTop: spacing.lg,
+    padding: spacing.md,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.md,
+    alignSelf: 'stretch',
+  },
+  derivTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+    marginBottom: spacing.xs,
+  },
+  derivItem: {
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 20,
+  },
+  derivTerm: { fontWeight: '700', color: colors.text },
   flipHint: { fontSize: 14, color: colors.textLight },
   rating: { padding: spacing.md, paddingBottom: spacing.xl },
   ratingRow: { flexDirection: 'row', gap: spacing.md },

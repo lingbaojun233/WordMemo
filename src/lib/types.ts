@@ -4,6 +4,7 @@ export type Word = {
   meaning: string; // 中文释义
   phonetic?: string; // 音标
   example?: string; // 例句
+  derivatives?: { term: string; meaning: string }[]; // 派生词（词族）
   box: number; // 当前 Leitner 记忆盒层级（0 = 新词）
   dueAt: number; // 下次复习时间戳（ms）
   correctCount: number; // 累计答对次数

@@ -85,6 +85,11 @@ export default function WordbookDetailScreen() {
         <Text style={styles.meaning} numberOfLines={2}>
           {item.meaning}
         </Text>
+        {item.derivatives && item.derivatives.length > 0 ? (
+          <Text style={styles.derivatives} numberOfLines={2}>
+            派生：{item.derivatives.map((d) => d.term).join(' · ')}
+          </Text>
+        ) : null}
         {item.example ? (
           <Text style={styles.example} numberOfLines={1}>
             {item.example}
@@ -251,4 +256,5 @@ const styles = StyleSheet.create({
   phonetic: { fontSize: 13, color: colors.textMuted },
   meaning: { fontSize: 14, color: colors.textMuted, marginTop: 2 },
   example: { fontSize: 12, color: colors.textLight, marginTop: 4, fontStyle: 'italic' },
+  derivatives: { fontSize: 12, color: colors.primary, marginTop: 4 },
 });

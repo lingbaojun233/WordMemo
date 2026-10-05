@@ -34,6 +34,7 @@ export default function BuiltinScreen() {
       {BUILTIN_BOOKS.map((b) => {
         const added = wordbooks.some((wb) => wb.builtinKey === b.key);
         const loading = loadingKey === b.key;
+        const totalWords = b.words.reduce((s, w) => s + 1 + (w.d?.length ?? 0), 0);
         return (
           <View key={b.key} style={styles.card}>
             <View style={styles.icon}>
@@ -44,7 +45,9 @@ export default function BuiltinScreen() {
               <Text style={styles.desc} numberOfLines={1}>
                 {b.description}
               </Text>
-              <Text style={styles.count}>{b.words.length} 词</Text>
+              <Text style={styles.count}>
+                {b.words.length} 词族 · 共 {totalWords} 词
+              </Text>
             </View>
             <Button
               label={added ? '已添加' : '添加'}
