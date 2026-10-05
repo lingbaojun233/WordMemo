@@ -29,6 +29,7 @@ import {
   saveUsers,
 } from '../lib/authStorage';
 import { BuiltinBookKey, getBuiltinBook } from '../data/builtinBooks';
+import { LevelKey } from '../data/levelTestWords';
 
 type State = {
   users: User[];
@@ -58,6 +59,7 @@ type Action =
   | { type: 'DELETE_WORD'; bookId: string; wordId: string }
   | { type: 'IMPORT_WORDS'; bookId: string; words: Word[] }
   | { type: 'REVIEW_WORD'; bookId: string; wordId: string; result: ReviewResult }
+  | { type: 'LEARN_WORD'; term: string; meaning: string; level?: LevelKey }
   | { type: 'RESET_BOOK_PROGRESS'; bookId: string };
 
 type ProgressState = Pick<
@@ -278,6 +280,58 @@ function reducer(state: State, action: Action): State {
       };
     }
 
+    case 'LEARN_WORD': {
+      const now = Date.now();
+      const term = action.term.toLowerCase();
+      // 已在词库中学过：复习并同步到所有词库
+      for (const b of state.wordbooks) {
+        const w = b.words.find((x) => x.term.toLowerCase() === term);
+        if (w) {
+          const updated = applyReview(w, 'good', now);
+          const np = {
+            box: updated.box,
+            dueAt: updated.dueAt,
+            correctCount: updated.correctCount,
+            wrongCount: updated.wrongCount,
+            lastReviewedAt: updated.lastReviewedAt,
+          };
+          return {
+            ...state,
+            wordbooks: state.wordbooks.map((bb) => ({
+              ...bb,
+              words: bb.words.map((x) =>
+                x.term.toLowerCase() === term ? { ...x, ...np } : x
+              ),
+            })),
+          };
+        }
+      }
+      // 未学过：新建到「自学单词」本，并提升一级
+      const fresh = buildWord({
+        term: action.term,
+        meaning: action.meaning,
+        progress: null,
+      });
+      const learned = applyReview({ ...fresh, level: action.level }, 'good', now);
+      const selfBook = state.wordbooks.find((b) => b.name === '自学单词');
+      if (selfBook) {
+        return {
+          ...state,
+          wordbooks: state.wordbooks.map((b) =>
+            b.id === selfBook.id ? { ...b, words: [learned, ...b.words] } : b
+          ),
+        };
+      }
+      const nb: Wordbook = {
+        id: uid(),
+        name: '自学单词',
+        description: '在「全部单词」中标记认识的单词',
+        createdAt: now,
+        words: [learned],
+      };
+      return { ...state, wordbooks: [nb, ...state.wordbooks] };
+    }
+
     case 'RESET_BOOK_PROGRESS': {
       const book = state.wordbooks.find((b) => b.id === action.bookId);
       if (!book) return state;
@@ -332,6 +386,7 @@ type AppContextValue = {
   deleteWord: (bookId: string, wordId: string) => void;
   importWords: (bookId: string, entries: ParsedEntry[]) => ImportResult;
   reviewWord: (bookId: string, wordId: string, result: ReviewResult) => void;
+  markKnown: (term: string, meaning: string, level?: LevelKey) => void;
   resetBookProgress: (bookId: string) => void;
 };
 
@@ -544,6 +599,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const markKnown = useCallback(
+    (term: string, meaning: string, level?: LevelKey) =>
+      dispatch({ type: 'LEARN_WORD', term, meaning, level }),
+    []
+  );
+
   const resetBookProgress = useCallback(
     (bookId: string) => dispatch({ type: 'RESET_BOOK_PROGRESS', bookId }),
     []
@@ -569,6 +630,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       deleteWord,
       importWords,
       reviewWord,
+      markKnown,
       resetBookProgress,
     }),
     [
@@ -589,6 +651,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       deleteWord,
       importWords,
       reviewWord,
+      markKnown,
       resetBookProgress,
     ]
   );

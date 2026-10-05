@@ -18,6 +18,24 @@ export const BOX_INTERVALS = [
 
 export const MAX_BOX = BOX_INTERVALS.length - 1;
 
+// 记忆盒各层级的数字等级标签（用于在颜色旁提示含义）
+export const BOX_LABELS = [
+  '新词', // 0
+  '10分钟', // 1
+  '1天', // 2
+  '2天', // 3
+  '4天', // 4
+  '7天', // 5
+  '15天', // 6
+  '已学会', // 7
+];
+
+/** 返回记忆盒数字等级提示，如「7-已学会」「0-新词」 */
+export function boxLabel(box: number): string {
+  const b = Math.max(0, Math.min(MAX_BOX, box));
+  return `${b}-${BOX_LABELS[b]}`;
+}
+
 /**
  * 根据复习结果推进一个单词的记忆盒层级并计算下次复习时间。
  * - good：升级一层

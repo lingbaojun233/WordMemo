@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
 import { boxColors, colors, radius, spacing } from '../../../lib/theme';
+import { boxLabel } from '../../../lib/srs';
 import { Word } from '../../../lib/types';
 import { Button, EmptyState } from '../../../components/ui';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
@@ -77,7 +78,12 @@ export default function WordbookDetailScreen() {
       onPress={() => openEdit(item)}
       onLongPress={() => setDeleteTarget(item)}
     >
-      <View style={[styles.boxDot, { backgroundColor: boxColors[item.box] ?? colors.textLight }]} />
+      <View style={[styles.boxBadge, { backgroundColor: `${boxColors[item.box] ?? colors.textLight}22` }]}>
+        <View style={[styles.boxDot, { backgroundColor: boxColors[item.box] ?? colors.textLight }]} />
+        <Text style={[styles.boxText, { color: boxColors[item.box] ?? colors.textLight }]}>
+          {boxLabel(item.box)}
+        </Text>
+      </View>
       <View style={styles.wordBody}>
         <View style={styles.wordHead}>
           <Text style={styles.term}>{item.term}</Text>
@@ -268,7 +274,17 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     marginHorizontal: spacing.md,
   },
-  boxDot: { width: 10, height: 10, borderRadius: 5, marginRight: spacing.md },
+  boxBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: spacing.sm,
+  },
+  boxDot: { width: 8, height: 8, borderRadius: 4 },
+  boxText: { fontSize: 11, fontWeight: '700' },
   wordBody: { flex: 1 },
   wordHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   term: { fontSize: 17, fontWeight: '700', color: colors.text },
