@@ -9,8 +9,10 @@ import { Word } from '../../../lib/types';
 import { Button, EmptyState } from '../../../components/ui';
 
 type Phase = 'intro' | 'study' | 'done';
+type SubPhase = 'memorize' | 'choose';
 
 type QuizQ = {
+  id: string;
   term: string;
   correct: string;
   options: string[];
@@ -34,7 +36,7 @@ function buildQuiz(words: Word[]): QuizQ[] {
     const options = shuffle(
       [w.meaning, ...distractors].filter((v, idx, arr) => arr.indexOf(v) === idx)
     );
-    return { term: w.term, correct: w.meaning, options, derivatives: w.derivatives };
+    return { id: w.id, term: w.term, correct: w.meaning, options, derivatives: w.derivatives };
   });
 }
 
@@ -44,9 +46,9 @@ export default function StudyScreen() {
   const book = wordbooks.find((b) => b.id === id);
 
   const [phase, setPhase] = useState<Phase>('intro');
-  const [sourceWords, setSourceWords] = useState<Word[]>([]);
   const [quiz, setQuiz] = useState<QuizQ[]>([]);
   const [idx, setIdx] = useState(0);
+  const [subPhase, setSubPhase] = useState<SubPhase>('memorize');
   const [picked, setPicked] = useState<string | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
 
@@ -63,9 +65,9 @@ export default function StudyScreen() {
   const start = (mode: 'due' | 'all') => {
     const words = mode === 'due' ? due : book.words;
     const qs = buildQuiz(words);
-    setSourceWords(words);
     setQuiz(qs);
     setIdx(0);
+    setSubPhase('memorize');
     setPicked(null);
     setCorrectCount(0);
     setPhase('study');
@@ -78,16 +80,22 @@ export default function StudyScreen() {
     const isCorrect = opt === q.correct;
     if (isCorrect) setCorrectCount((c) => c + 1);
     // 只有选对释义才提升记忆等级
-    const w = sourceWords.find((x) => x.term.toLowerCase() === q.term.toLowerCase());
-    if (w) reviewWord(book.id, w.id, isCorrect ? 'good' : 'again');
-    setTimeout(() => {
-      if (idx + 1 < quiz.length) {
-        setIdx(idx + 1);
-        setPicked(null);
-      } else {
-        setPhase('done');
-      }
-    }, 800);
+    reviewWord(book.id, q.id, isCorrect ? 'good' : 'again');
+    if (isCorrect) {
+      // 选对：短暂显示后自动进入下一个
+      setTimeout(() => next(), 800);
+    }
+    // 选错：不自动前进，等待用户按「下一个」
+  };
+
+  const next = () => {
+    if (idx + 1 < quiz.length) {
+      setIdx(idx + 1);
+      setSubPhase('memorize');
+      setPicked(null);
+    } else {
+      setPhase('done');
+    }
   };
 
   // ---------- 开始页 ----------
@@ -103,7 +111,7 @@ export default function StudyScreen() {
             <>
               <Text style={styles.title}>今日待复习 {due.length} 个</Text>
               <Text style={styles.desc}>
-                看单词、选对释义。选对提升记忆等级，选错降级
+                先背诵单词释义，再选择正确释义。选对提升记忆等级，选错降级
               </Text>
               <Button label="开始复习" icon="play" onPress={() => start('due')} style={{ alignSelf: 'stretch' }} />
             </>
@@ -159,6 +167,7 @@ export default function StudyScreen() {
   const q = quiz[idx];
   if (!q) return null;
   const progress = (idx + 1) / quiz.length;
+  const isWrong = picked !== null && picked !== q.correct;
 
   return (
     <View style={styles.container}>
@@ -174,44 +183,72 @@ export default function StudyScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.studyContent}>
-        <View style={styles.wordCard}>
-          <Text style={styles.questionLabel}>选择正确释义</Text>
-          <Text style={styles.word}>{q.term}</Text>
-        </View>
+        {subPhase === 'memorize' ? (
+          <>
+            {/* 先自行背诵 */}
+            <View style={styles.wordCard}>
+              <Text style={styles.questionLabel}>先记住这个单词</Text>
+              <Text style={styles.word}>{q.term}</Text>
+              <View style={styles.divider} />
+              <Text style={styles.memorizeMeaning}>{q.correct}</Text>
+            </View>
 
-        <View style={styles.options}>
-          {q.options.map((opt) => {
-            const isCorrect = opt === q.correct;
-            const isPicked = picked === opt;
-            let border = {};
-            if (picked) {
-              if (isCorrect) border = { borderColor: colors.success, backgroundColor: '#F0FDF4' };
-              else if (isPicked) border = { borderColor: colors.danger, backgroundColor: '#FEF2F2' };
-            }
-            return (
-              <Button
-                key={opt}
-                label={opt}
-                variant="outline"
-                onPress={() => answer(opt)}
-                disabled={picked !== null}
-                style={{ alignSelf: 'stretch', ...border }}
-                textStyle={{ textAlign: 'left' }}
-              />
-            );
-          })}
-        </View>
+            {q.derivatives && q.derivatives.length > 0 ? (
+              <View style={styles.derivBox}>
+                <Text style={styles.derivTitle}>派生词</Text>
+                {q.derivatives.map((d) => (
+                  <Text key={d.term} style={styles.derivItem}>
+                    <Text style={styles.derivTerm}>{d.term}</Text>  {d.meaning}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
 
-        {picked && q.derivatives && q.derivatives.length > 0 ? (
-          <View style={styles.derivBox}>
-            <Text style={styles.derivTitle}>派生词</Text>
-            {q.derivatives.map((d) => (
-              <Text key={d.term} style={styles.derivItem}>
-                <Text style={styles.derivTerm}>{d.term}</Text>  {d.meaning}
-              </Text>
-            ))}
-          </View>
-        ) : null}
+            <Button label="我记住了，开始选择" icon="arrow-forward" onPress={() => setSubPhase('choose')} />
+          </>
+        ) : (
+          <>
+            {/* 再选择正确释义 */}
+            <View style={styles.wordCard}>
+              <Text style={styles.questionLabel}>选择正确释义</Text>
+              <Text style={styles.word}>{q.term}</Text>
+            </View>
+
+            <View style={styles.options}>
+              {q.options.map((opt) => {
+                const isCorrect = opt === q.correct;
+                const isPicked = picked === opt;
+                let border = {};
+                if (picked) {
+                  if (isCorrect) border = { borderColor: colors.success, backgroundColor: '#F0FDF4' };
+                  else if (isPicked) border = { borderColor: colors.danger, backgroundColor: '#FEF2F2' };
+                }
+                return (
+                  <Button
+                    key={opt}
+                    label={opt}
+                    variant="outline"
+                    onPress={() => answer(opt)}
+                    disabled={picked !== null}
+                    style={{ alignSelf: 'stretch', ...border }}
+                    textStyle={{ textAlign: 'left' }}
+                  />
+                );
+              })}
+            </View>
+
+            {isWrong ? (
+              <>
+                <View style={styles.correctBox}>
+                  <Text style={styles.correctText}>
+                    正确释义：<Text style={{ fontWeight: '800', color: colors.text }}>{q.correct}</Text>
+                  </Text>
+                </View>
+                <Button label="下一个" icon="arrow-forward" onPress={next} />
+              </>
+            ) : null}
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -263,16 +300,25 @@ const styles = StyleSheet.create({
   },
   questionLabel: { fontSize: 13, color: colors.textMuted },
   word: { fontSize: 34, fontWeight: '800', color: colors.text, marginTop: spacing.sm },
+  divider: { width: 40, height: 3, borderRadius: 2, backgroundColor: colors.border, marginVertical: spacing.md },
+  memorizeMeaning: { fontSize: 20, fontWeight: '600', color: colors.text, textAlign: 'center', lineHeight: 30 },
   options: { gap: spacing.md },
   derivBox: {
     padding: spacing.md,
     backgroundColor: colors.primaryLight,
     borderRadius: radius.md,
-    marginTop: spacing.sm,
   },
   derivTitle: { fontSize: 12, fontWeight: '700', color: colors.primary, marginBottom: spacing.xs },
   derivItem: { fontSize: 13, color: colors.textMuted, lineHeight: 20 },
   derivTerm: { fontWeight: '700', color: colors.text },
+  correctBox: {
+    padding: spacing.md,
+    backgroundColor: '#FEF2F2',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  correctText: { fontSize: 15, color: colors.textMuted },
   summaryRow: { flexDirection: 'row', gap: spacing.md, alignSelf: 'stretch', marginBottom: spacing.md },
   summaryItem: {
     flex: 1,

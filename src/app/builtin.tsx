@@ -75,11 +75,13 @@ export default function BuiltinScreen() {
 
 function levelShort(key: BuiltinBookKey): string {
   switch (key) {
-    case 'elementary': return '小';
     case 'junior': return '初';
     case 'senior': return '高';
-    case 'cet4': return '4';
-    case 'cet6': return '6';
+    case 'cet4': return '四';
+    case 'cet6': return '六';
+    case 'tem4': return '专四';
+    case 'tem8': return '专八';
+    case 'gre': return 'GRE';
     default: return '?';
   }
 }
@@ -107,7 +109,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconText: { fontSize: 22, fontWeight: '800', color: colors.primary },
+  iconText: { fontSize: 16, fontWeight: '800', color: colors.primary },
   info: { flex: 1 },
   name: { fontSize: 17, fontWeight: '700', color: colors.text },
   desc: { fontSize: 13, color: colors.textMuted, marginTop: 2 },

@@ -6,24 +6,26 @@ import { useApp } from '../lib/AppContext';
 import { BUILTIN_BOOKS } from '../data/builtinBooks';
 import { LEVEL_SAMPLES, LevelKey } from '../data/levelTestWords';
 import { boxColors, colors, radius, spacing } from '../lib/theme';
-import { boxLabel, MAX_BOX } from '../lib/srs';
+import { boxLabel } from '../lib/srs';
 import { EmptyState } from '../components/ui';
 
-type StageFilter = 'all' | 'new' | 'learning' | 'mastered';
+type InBookFilter = 'all' | 'in' | 'out'; // 全部 / 在单词本中 / 不在单词本中
 type LevelFilter = 'all' | LevelKey;
 
-const LEVEL_ORDER: LevelKey[] = ['elementary', 'junior', 'senior', 'cet4', 'cet6'];
+const LEVEL_ORDER: LevelKey[] = ['junior', 'senior', 'cet4', 'cet6', 'tem4', 'tem8', 'gre'];
 
 function levelLabel(level: LevelKey): string {
   return LEVEL_SAMPLES.find((s) => s.level === level)?.label ?? '';
 }
 
 const LEVEL_COLORS: Record<LevelKey, string> = {
-  elementary: '#22C55E',
   junior: '#0EA5E9',
   senior: '#8B5CF6',
   cet4: '#F59E0B',
   cet6: '#EF4444',
+  tem4: '#EC4899',
+  tem8: '#14B8A6',
+  gre: '#64748B',
 };
 
 type Entry = {
@@ -36,7 +38,7 @@ type Entry = {
 export default function AllWordsScreen() {
   const { wordbooks } = useApp();
   const [query, setQuery] = useState('');
-  const [stage, setStage] = useState<StageFilter>('all');
+  const [inBook, setInBook] = useState<InBookFilter>('all');
   const [level, setLevel] = useState<LevelFilter>('all');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -53,7 +55,7 @@ export default function AllWordsScreen() {
     return map;
   }, [wordbooks]);
 
-  // 六级以下全部内置词汇（去重，按最低级别；合并派生词）
+  // 全部内置词汇（去重，按最低级别；合并派生词）
   const entries = useMemo<Entry[]>(() => {
     const map = new Map<
       string,
@@ -93,10 +95,9 @@ export default function AllWordsScreen() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return entries.filter((e) => {
-      const box = progressMap.get(e.term.toLowerCase()) ?? 0;
-      if (stage === 'new' && box !== 0) return false;
-      if (stage === 'learning' && !(box > 0 && box < MAX_BOX)) return false;
-      if (stage === 'mastered' && box < MAX_BOX) return false;
+      const inBooks = progressMap.has(e.term.toLowerCase());
+      if (inBook === 'in' && !inBooks) return false;
+      if (inBook === 'out' && inBooks) return false;
       if (level !== 'all' && e.level !== level) return false;
       if (q) {
         // 搜索同时匹配基本词与派生词的单词和释义
@@ -109,7 +110,7 @@ export default function AllWordsScreen() {
       }
       return true;
     });
-  }, [entries, stage, level, query, progressMap]);
+  }, [entries, inBook, level, query, progressMap]);
 
   // 派生「是否展开」：手动展开，或搜索命中派生词时自动展开
   const isExpanded = (e: Entry): boolean => {
@@ -187,10 +188,9 @@ export default function AllWordsScreen() {
       </View>
 
       <View style={styles.filterRow}>
-        <Chip label="全部" active={stage === 'all'} onPress={() => setStage('all')} />
-        <Chip label="新词" active={stage === 'new'} onPress={() => setStage('new')} />
-        <Chip label="学习中" active={stage === 'learning'} onPress={() => setStage('learning')} />
-        <Chip label="已学会" active={stage === 'mastered'} onPress={() => setStage('mastered')} />
+        <Chip label="全部" active={inBook === 'all'} onPress={() => setInBook('all')} />
+        <Chip label="在单词本中" active={inBook === 'in'} onPress={() => setInBook('in')} />
+        <Chip label="不在单词本中" active={inBook === 'out'} onPress={() => setInBook('out')} />
       </View>
 
       <View style={styles.filterRow}>

@@ -7,7 +7,7 @@ export type Word = {
   phonetic?: string; // 音标
   example?: string; // 例句
   derivatives?: { term: string; meaning: string }[]; // 派生词（词族）
-  level?: LevelKey; // 单词所属级别（小学/初中/高中/四级/六级）
+  level?: LevelKey; // 单词所属级别（初中/高中/四级/六级/专四/专八/GRE）
   box: number; // 当前 Leitner 记忆盒层级（0 = 新词）
   dueAt: number; // 下次复习时间戳（ms）
   correctCount: number; // 累计答对次数

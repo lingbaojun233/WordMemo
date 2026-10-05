@@ -24,7 +24,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// 每个级别随机抽 20 词，生成四选一题目
+// 每个级别随机抽词，生成四选一题目
 function buildQuiz(sample: LevelSample, count: number): QuizQ[] {
   const words = shuffle(sample.words).slice(0, count);
   return words.map((w) => {
@@ -44,7 +44,7 @@ function estimateLevel(questions: QuizQ[], answers: boolean[]): LevelKey {
     total.set(q.level, (total.get(q.level) ?? 0) + 1);
     if (answers[i]) correct.set(q.level, (correct.get(q.level) ?? 0) + 1);
   });
-  let level: LevelKey = 'elementary';
+  let level: LevelKey = 'junior';
   for (const key of LEVEL_ORDER) {
     const t = total.get(key) ?? 0;
     const c = correct.get(key) ?? 0;
@@ -67,7 +67,7 @@ export default function LevelTestScreen() {
   }, []);
 
   const start = () => {
-    const qs = LEVEL_SAMPLES.flatMap((s) => buildQuiz(s, 20));
+    const qs = LEVEL_SAMPLES.flatMap((s) => buildQuiz(s, 10));
     setQuestions(qs);
     setIdx(0);
     setPicked(null);
@@ -112,7 +112,7 @@ export default function LevelTestScreen() {
           </View>
           <Text style={styles.title}>词汇水平测验</Text>
           <Text style={styles.desc}>
-            从小学到六级，每个级别随机 20 词、共约 100 题。选择单词的正确释义，答对才算认识该词。
+            从初中到 GRE 共 7 个级别，每个级别随机 10 词、共 70 题。选择单词的正确释义，答对才算认识该词。
           </Text>
           <Text style={styles.descMuted}>预计用时 5 分钟，测完自动估测你的词汇水平</Text>
           <Button label="开始测验" icon="play" onPress={start} style={{ alignSelf: 'stretch' }} />

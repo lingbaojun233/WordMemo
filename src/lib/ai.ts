@@ -56,11 +56,13 @@ function extractJson(content: string): unknown {
 }
 
 const LEVEL_DESC: Record<string, string> = {
-  elementary: '小学及以下',
   junior: '初中及以下',
   senior: '高中（高考）及以下',
   cet4: '四级及以下',
   cet6: '六级及以下',
+  tem4: '专四及以下',
+  tem8: '专八及以下',
+  gre: 'GRE 及以下',
 };
 
 export async function generatePassage(params: {
