@@ -192,7 +192,7 @@ export default function AllWordsScreen() {
         {boxColors.map((c, i) => (
           <View key={i} style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: c }]} />
-            <Text style={styles.legendLabel}>{i === 0 ? '新词' : i === 7 ? '已学会' : String(i)}</Text>
+            <Text style={styles.legendLabel}>{boxLabel(i)}</Text>
           </View>
         ))}
       </View>
