@@ -26,3 +26,5 @@ export type Wordbook = {
 };
 
 export type ReviewResult = 'again' | 'hard' | 'good';
+
+export type PickMode = 'sequential' | 'random';

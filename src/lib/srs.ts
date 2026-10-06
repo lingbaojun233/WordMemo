@@ -1,4 +1,5 @@
-import { ReviewResult, Word } from './types';
+import { PickMode, ReviewResult, Word } from './types';
+import { shuffle } from './utils';
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -86,4 +87,26 @@ export function dueWords(words: Word[], now = Date.now()): Word[] {
   return words
     .filter((w) => isDue(w, now))
     .sort((a, b) => a.dueAt - b.dueAt);
+}
+
+/**
+ * 从单词本中选取今日要学习的单词（最多 dailyWords 个）。
+ * 到期单词优先（按到期时间），不足则用其余单词补齐。
+ * - sequential：保持「到期 → 其余」的顺序
+ * - random：各部分随机打乱
+ */
+export function pickDailyWords(
+  words: Word[],
+  dailyWords: number,
+  pickMode: PickMode,
+  now = Date.now()
+): Word[] {
+  const due = dueWords(words, now);
+  const dueIds = new Set(due.map((w) => w.id));
+  const rest = words.filter((w) => !dueIds.has(w.id));
+  const pool =
+    pickMode === 'random'
+      ? [...shuffle(due), ...shuffle(rest)]
+      : [...due, ...rest];
+  return pool.slice(0, Math.max(0, dailyWords));
 }

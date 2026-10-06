@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
-import { dueWords } from '../../../lib/srs';
+import { isNew, pickDailyWords } from '../../../lib/srs';
+import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
 import { colors, radius, spacing } from '../../../lib/theme';
 import { Word } from '../../../lib/types';
 import { Button, EmptyState } from '../../../components/ui';
@@ -45,12 +46,28 @@ export default function StudyScreen() {
   const { wordbooks, reviewWord } = useApp();
   const book = wordbooks.find((b) => b.id === id);
 
+  const [settings, setSettings] = useState<StudySettings | null>(null);
   const [phase, setPhase] = useState<Phase>('intro');
   const [quiz, setQuiz] = useState<QuizQ[]>([]);
   const [idx, setIdx] = useState(0);
   const [subPhase, setSubPhase] = useState<SubPhase>('memorize');
   const [picked, setPicked] = useState<string | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
+
+  useEffect(() => {
+    loadStudySettings().then(setSettings);
+  }, []);
+
+  // 今日计划学习的单词：到期优先，截取到每日计划数，按顺序/随机选取
+  const selected = useMemo(() => {
+    if (!book) return [];
+    const daily = settings?.dailyWords ?? 20;
+    const mode = settings?.pickMode ?? 'sequential';
+    return pickDailyWords(book.words, daily, mode);
+  }, [book, settings]);
+
+  const reviewCount = selected.filter((w) => !isNew(w)).length;
+  const newCount = selected.length - reviewCount;
 
   if (!book) {
     return (
@@ -60,11 +77,8 @@ export default function StudyScreen() {
     );
   }
 
-  const due = dueWords(book.words);
-
-  const start = (mode: 'due' | 'all') => {
-    const words = mode === 'due' ? due : book.words;
-    const qs = buildQuiz(words);
+  const start = () => {
+    const qs = buildQuiz(selected);
     setQuiz(qs);
     setIdx(0);
     setSubPhase('memorize');
@@ -107,19 +121,16 @@ export default function StudyScreen() {
           <View style={styles.heroIcon}>
             <Ionicons name="albums" size={40} color={colors.primary} />
           </View>
-          {due.length > 0 ? (
+          {selected.length > 0 ? (
             <>
-              <Text style={styles.title}>今日待复习 {due.length} 个</Text>
+              <Text style={styles.title}>今日学习 {selected.length} 个</Text>
+              <Text style={styles.subDesc}>
+                {settings?.pickMode === 'random' ? '随机选取' : '按顺序选取'} · 待复习 {reviewCount} · 新词 {newCount}
+              </Text>
               <Text style={styles.desc}>
                 先背诵单词释义，再选择正确释义。选对提升记忆等级，选错降级
               </Text>
-              <Button label="开始复习" icon="play" onPress={() => start('due')} style={{ alignSelf: 'stretch' }} />
-            </>
-          ) : book.words.length > 0 ? (
-            <>
-              <Text style={styles.title}>今日复习已完成 🎉</Text>
-              <Text style={styles.desc}>没有到期的单词，可以复习全部单词</Text>
-              <Button label="复习全部单词" icon="refresh" onPress={() => start('all')} style={{ alignSelf: 'stretch' }} />
+              <Button label="开始学习" icon="play" onPress={start} style={{ alignSelf: 'stretch' }} />
             </>
           ) : (
             <EmptyState icon="book-outline" title="单词本为空" description="请先添加或导入单词" />
@@ -157,7 +168,7 @@ export default function StudyScreen() {
             </View>
           </View>
           <Button label="返回" icon="arrow-back" onPress={() => router.back()} style={{ alignSelf: 'stretch' }} />
-          <Button label="再来一轮" variant="outline" icon="refresh" onPress={() => start(due.length > 0 ? 'due' : 'all')} style={{ alignSelf: 'stretch' }} />
+          <Button label="再来一轮" variant="outline" icon="refresh" onPress={start} style={{ alignSelf: 'stretch' }} />
         </View>
       </View>
     );
@@ -273,6 +284,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   title: { fontSize: 22, fontWeight: '800', color: colors.text, textAlign: 'center' },
+  subDesc: { fontSize: 13, color: colors.textLight, textAlign: 'center', marginTop: spacing.xs },
   desc: { fontSize: 15, color: colors.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: spacing.md },
   progressWrap: {
     flexDirection: 'row',

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
 import { generatePassage, GeneratedPassage, parsePassage, PassageSegment } from '../../../lib/ai';
-import { dueWords } from '../../../lib/srs';
+import { pickDailyWords } from '../../../lib/srs';
 import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
 import { colors, radius, spacing } from '../../../lib/theme';
 import { Word } from '../../../lib/types';
@@ -20,13 +20,6 @@ import { LEVEL_SAMPLES } from '../../../data/levelTestWords';
 type Phase = 'intro' | 'generating' | 'reading' | 'test' | 'result';
 
 type QuizQuestion = { term: string; correct: string; options: string[] };
-
-function selectTargetWords(book: { words: Word[] }, count: number): Word[] {
-  const newWords = book.words.filter((w) => w.box === 0 && !w.lastReviewedAt);
-  const reviewDue = dueWords(book.words).filter((w) => w.box > 0 || w.lastReviewedAt);
-  const others = book.words.filter((w) => !newWords.includes(w) && !reviewDue.includes(w));
-  return [...newWords, ...reviewDue, ...others].slice(0, count);
-}
 
 function chunkEvenly<T>(arr: T[], count: number): T[][] {
   if (count <= 0 || arr.length === 0) return [];
@@ -98,7 +91,7 @@ export default function ReadingScreen() {
       setError('请先在「学习设置」中填写 AI API Key');
       return;
     }
-    const words = selectTargetWords(book, settings.dailyWords);
+    const words = pickDailyWords(book.words, settings.dailyWords, settings.pickMode);
     if (words.length === 0) {
       setError('该单词本暂无单词，请先导入或添加单词');
       return;

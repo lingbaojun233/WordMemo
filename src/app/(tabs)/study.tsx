@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../lib/AppContext';
 import { loadStudySettings, saveStudySettings, StudyMode, StudySettings } from '../../lib/studySettings';
 import { colors, radius, spacing } from '../../lib/theme';
+import { PickMode } from '../../lib/types';
 import { Button } from '../../components/ui';
 
 const MODES: {
@@ -16,6 +17,11 @@ const MODES: {
   { key: 'memorize_quiz', icon: 'albums', title: '先背诵后测验', enabled: true },
   { key: 'ai_reading', icon: 'newspaper', title: 'AI 写短文，阅读后测验', enabled: true },
   { key: 'ai_questions', icon: 'create', title: 'AI 出题，学习后答题', enabled: false },
+];
+
+const PICK_MODES: { key: PickMode; title: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'sequential', title: '按顺序选取单词', icon: 'list' },
+  { key: 'random', title: '随机选取单词', icon: 'shuffle' },
 ];
 
 export default function StudyTab() {
@@ -109,6 +115,28 @@ export default function StudyTab() {
             />
           </>
         ) : null}
+      </View>
+
+      {/* 选取方式 */}
+      <Text style={styles.sectionTitle}>选取方式</Text>
+      <View style={styles.card}>
+        {PICK_MODES.map((p, i) => (
+          <View key={p.key}>
+            {i > 0 ? <View style={styles.divider} /> : null}
+            <Pressable
+              style={styles.modeRow}
+              onPress={() => update({ pickMode: p.key })}
+            >
+              <Ionicons name={p.icon} size={20} color={colors.primary} />
+              <Text style={styles.modeText}>{p.title}</Text>
+              <Ionicons
+                name={settings.pickMode === p.key ? 'radio-button-on' : 'radio-button-off'}
+                size={20}
+                color={settings.pickMode === p.key ? colors.primary : colors.textLight}
+              />
+            </Pressable>
+          </View>
+        ))}
       </View>
 
       {/* 选择单词本 */}
