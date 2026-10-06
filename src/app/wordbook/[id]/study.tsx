@@ -4,13 +4,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
 import { buildQuiz, QuizQuestion } from '../../../lib/quiz';
-import { isNew, pickDailyWords } from '../../../lib/srs';
+import { isGraduated } from '../../../lib/srs';
 import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
 import { colors, radius, spacing } from '../../../lib/theme';
+import { Word } from '../../../lib/types';
+import { shuffle, startOfToday } from '../../../lib/utils';
 import { Button, EmptyState } from '../../../components/ui';
 
+const GROUP_SIZE = 5; // 每 5 个单词为一组：先背诵一组，再测验一组
+
 type Phase = 'intro' | 'study' | 'done';
-type SubPhase = 'memorize' | 'choose';
+type SubPhase = 'memorize' | 'quiz';
 
 export default function StudyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -20,8 +24,9 @@ export default function StudyScreen() {
   const [settings, setSettings] = useState<StudySettings | null>(null);
   const [phase, setPhase] = useState<Phase>('intro');
   const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
-  const [idx, setIdx] = useState(0);
+  const [groupIdx, setGroupIdx] = useState(0);
   const [subPhase, setSubPhase] = useState<SubPhase>('memorize');
+  const [subIdx, setSubIdx] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
 
@@ -29,16 +34,37 @@ export default function StudyScreen() {
     loadStudySettings().then(setSettings);
   }, []);
 
-  // 今日计划学习的单词：到期优先，截取到每日计划数，按顺序/随机选取
-  const selected = useMemo(() => {
-    if (!book) return [];
-    const daily = settings?.dailyWords ?? 20;
-    const mode = settings?.pickMode ?? 'sequential';
-    return pickDailyWords(book.words, daily, mode);
+  // 今日还需学习多少词（学到今日目标完成为止）
+  const remaining = useMemo(() => {
+    if (!book || !settings) return 0;
+    const start = startOfToday();
+    const learnedToday = book.words.filter(
+      (w) => w.lastReviewedAt && w.lastReviewedAt >= start
+    ).length;
+    if (settings.goalType === 'daily') {
+      return Math.max(0, settings.dailyGoal - learnedToday);
+    }
+    const active = book.words.filter((w) => !isGraduated(w)).length;
+    const perDay = Math.ceil(active / Math.max(1, settings.deadlineDays));
+    return Math.max(0, perDay - learnedToday);
   }, [book, settings]);
 
-  const reviewCount = selected.filter((w) => !isNew(w)).length;
-  const newCount = selected.length - reviewCount;
+  // 本次要学的新词（box 0，尚未学会），最多 remaining 个
+  const selected = useMemo(() => {
+    if (!book || !settings || remaining <= 0) return [];
+    const newWords = book.words.filter((w) => w.box === 0);
+    const ordered = settings.pickMode === 'random' ? shuffle(newWords) : newWords;
+    return ordered.slice(0, remaining);
+  }, [book, settings, remaining]);
+
+  // 分组（每 5 个一组）
+  const groups = useMemo(() => {
+    const g: Word[][] = [];
+    for (let i = 0; i < selected.length; i += GROUP_SIZE) {
+      g.push(selected.slice(i, i + GROUP_SIZE));
+    }
+    return g;
+  }, [selected]);
 
   if (!book) {
     return (
@@ -48,35 +74,50 @@ export default function StudyScreen() {
     );
   }
 
+  const currentGroup = groups[groupIdx] ?? [];
+  const currentWord = currentGroup[subIdx];
+  const currentQ = quiz[groupIdx * GROUP_SIZE + subIdx] ?? null;
+
   const start = () => {
-    const qs = buildQuiz(selected, book.words);
-    setQuiz(qs);
-    setIdx(0);
+    setQuiz(buildQuiz(selected, book.words));
+    setGroupIdx(0);
     setSubPhase('memorize');
+    setSubIdx(0);
     setPicked(null);
     setCorrectCount(0);
     setPhase('study');
   };
 
   const answer = (opt: string) => {
-    if (picked) return;
+    if (picked || !currentQ) return;
     setPicked(opt);
-    const q = quiz[idx];
-    const isCorrect = opt === q.correct;
+    const isCorrect = opt === currentQ.correct;
     if (isCorrect) setCorrectCount((c) => c + 1);
-    // 只有选对释义才提升记忆等级
-    reviewWord(book.id, q.id, isCorrect ? 'good' : 'again');
+    // 通过升一级，不通过保持不变
+    reviewWord(book.id, currentQ.id, isCorrect ? 'good' : 'again');
     if (isCorrect) {
-      // 选对：短暂显示后自动进入下一个
-      setTimeout(() => next(), 800);
+      setTimeout(() => nextQuiz(), 800);
     }
-    // 选错：不自动前进，等待用户按「下一个」
   };
 
-  const next = () => {
-    if (idx + 1 < quiz.length) {
-      setIdx(idx + 1);
+  const nextMemorize = () => {
+    if (subIdx + 1 < currentGroup.length) {
+      setSubIdx(subIdx + 1);
+    } else {
+      setSubPhase('quiz');
+      setSubIdx(0);
+      setPicked(null);
+    }
+  };
+
+  const nextQuiz = () => {
+    if (subIdx + 1 < currentGroup.length) {
+      setSubIdx(subIdx + 1);
+      setPicked(null);
+    } else if (groupIdx + 1 < groups.length) {
+      setGroupIdx(groupIdx + 1);
       setSubPhase('memorize');
+      setSubIdx(0);
       setPicked(null);
     } else {
       setPhase('done');
@@ -92,19 +133,23 @@ export default function StudyScreen() {
           <View style={styles.heroIcon}>
             <Ionicons name="albums" size={40} color={colors.primary} />
           </View>
-          {selected.length > 0 ? (
+          {remaining > 0 && selected.length > 0 ? (
             <>
-              <Text style={styles.title}>今日学习 {selected.length} 个</Text>
+              <Text style={styles.title}>今日还需学习 {remaining} 词</Text>
               <Text style={styles.subDesc}>
-                {settings?.pickMode === 'random' ? '随机选取' : '按顺序选取'} · 待复习 {reviewCount} · 新词 {newCount}
+                共 {groups.length} 组 · 每组 {GROUP_SIZE} 词 · 先背诵后测验
               </Text>
               <Text style={styles.desc}>
-                先背诵单词释义，再选择正确释义。选对提升记忆等级，选错保持不变
+                每次先背诵一组 {GROUP_SIZE} 个单词，再对它们进行测验。选对升一级，选错保持不变
               </Text>
               <Button label="开始学习" icon="play" onPress={start} style={{ alignSelf: 'stretch' }} />
             </>
           ) : (
-            <EmptyState icon="book-outline" title="单词本为空" description="请先添加或导入单词" />
+            <EmptyState
+              icon="checkmark-circle-outline"
+              title="今日目标已完成"
+              description="很棒！可以复习到期单词，或休息一下"
+            />
           )}
         </View>
       </View>
@@ -139,46 +184,39 @@ export default function StudyScreen() {
             </View>
           </View>
           <Button label="返回" icon="arrow-back" onPress={() => router.back()} style={{ alignSelf: 'stretch' }} />
-          <Button label="再来一轮" variant="outline" icon="refresh" onPress={start} style={{ alignSelf: 'stretch' }} />
         </View>
       </View>
     );
   }
 
-  // ---------- 答题页 ----------
-  const q = quiz[idx];
-  if (!q) return null;
-  const progress = (idx + 1) / quiz.length;
-  const isWrong = picked !== null && picked !== q.correct;
+  // ---------- 学习页 ----------
+  if (!currentWord || !currentQ) return null;
 
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: '先背诵后测验' }} />
 
       <View style={styles.progressWrap}>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-        </View>
         <Text style={styles.progressText}>
-          {idx + 1} / {quiz.length}
+          第 {groupIdx + 1}/{groups.length} 组 · {subPhase === 'memorize' ? '背诵' : '测验'}{' '}
+          {subIdx + 1}/{currentGroup.length}
         </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.studyContent}>
         {subPhase === 'memorize' ? (
           <>
-            {/* 先自行背诵 */}
             <View style={styles.wordCard}>
               <Text style={styles.questionLabel}>先记住这个单词</Text>
-              <Text style={styles.word}>{q.term}</Text>
+              <Text style={styles.word}>{currentWord.term}</Text>
               <View style={styles.divider} />
-              <Text style={styles.memorizeMeaning}>{q.correct}</Text>
+              <Text style={styles.memorizeMeaning}>{currentWord.meaning}</Text>
             </View>
 
-            {q.derivatives && q.derivatives.length > 0 ? (
+            {currentWord.derivatives && currentWord.derivatives.length > 0 ? (
               <View style={styles.derivBox}>
                 <Text style={styles.derivTitle}>派生词</Text>
-                {q.derivatives.map((d) => (
+                {currentWord.derivatives.map((d) => (
                   <Text key={d.term} style={styles.derivItem}>
                     <Text style={styles.derivTerm}>{d.term}</Text>  {d.meaning}
                   </Text>
@@ -186,19 +224,22 @@ export default function StudyScreen() {
               </View>
             ) : null}
 
-            <Button label="我记住了，开始选择" icon="arrow-forward" onPress={() => setSubPhase('choose')} />
+            <Button
+              label={subIdx + 1 < currentGroup.length ? '下一个' : '开始测验'}
+              icon="arrow-forward"
+              onPress={nextMemorize}
+            />
           </>
         ) : (
           <>
-            {/* 再选择正确释义 */}
             <View style={styles.wordCard}>
               <Text style={styles.questionLabel}>选择正确释义</Text>
-              <Text style={styles.word}>{q.term}</Text>
+              <Text style={styles.word}>{currentWord.term}</Text>
             </View>
 
             <View style={styles.options}>
-              {q.options.map((opt) => {
-                const isCorrect = opt === q.correct;
+              {currentQ.options.map((opt) => {
+                const isCorrect = opt === currentQ.correct;
                 const isPicked = picked === opt;
                 let border = {};
                 if (picked) {
@@ -219,14 +260,14 @@ export default function StudyScreen() {
               })}
             </View>
 
-            {isWrong ? (
+            {picked !== null && picked !== currentQ.correct ? (
               <>
                 <View style={styles.correctBox}>
                   <Text style={styles.correctText}>
-                    正确释义：<Text style={{ fontWeight: '800', color: colors.text }}>{q.correct}</Text>
+                    正确释义：<Text style={{ fontWeight: '800', color: colors.text }}>{currentQ.correct}</Text>
                   </Text>
                 </View>
-                <Button label="下一个" icon="arrow-forward" onPress={next} />
+                <Button label="下一个" icon="arrow-forward" onPress={nextQuiz} />
               </>
             ) : null}
           </>
@@ -257,21 +298,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '800', color: colors.text, textAlign: 'center' },
   subDesc: { fontSize: 13, color: colors.textLight, textAlign: 'center', marginTop: spacing.xs },
   desc: { fontSize: 15, color: colors.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: spacing.md },
-  progressWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  progressTrack: {
-    flex: 1,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.border,
-    overflow: 'hidden',
-  },
-  progressFill: { height: 8, borderRadius: 4, backgroundColor: colors.primary },
-  progressText: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
+  progressWrap: { padding: spacing.md, paddingBottom: 0 },
+  progressText: { fontSize: 14, color: colors.textMuted, fontWeight: '600', textAlign: 'center' },
   studyContent: { padding: spacing.lg, paddingBottom: 40, gap: spacing.md },
   wordCard: {
     backgroundColor: colors.card,

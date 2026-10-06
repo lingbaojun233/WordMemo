@@ -3,32 +3,17 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../lib/AppContext';
-import { loadStudySettings, saveStudySettings, StudyMode, StudySettings } from '../../lib/studySettings';
+import { loadStudySettings, saveStudySettings, StudySettings } from '../../lib/studySettings';
 import { colors, radius, spacing } from '../../lib/theme';
-import { PickMode } from '../../lib/types';
 import { isDue, isGraduated, isNew } from '../../lib/srs';
 import { startOfToday } from '../../lib/utils';
 import { Button } from '../../components/ui';
-
-const MODES: {
-  key: StudyMode;
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  enabled: boolean;
-}[] = [
-  { key: 'memorize_quiz', icon: 'albums', title: '先背诵后测验', enabled: true },
-  { key: 'ai_reading', icon: 'newspaper', title: 'AI 写短文，阅读后测验', enabled: true },
-  { key: 'ai_questions', icon: 'create', title: 'AI 出题，学习后答题', enabled: false },
-];
-
-const PICK_MODES: { key: PickMode; title: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'sequential', title: '按顺序选取单词', icon: 'list' },
-  { key: 'random', title: '随机选取单词', icon: 'shuffle' },
-];
+import { StudyStartModal } from '../../components/StudyStartModal';
 
 export default function StudyTab() {
   const { wordbooks } = useApp();
   const [settings, setSettings] = useState<StudySettings | null>(null);
+  const [showStartModal, setShowStartModal] = useState(false);
 
   useEffect(() => {
     loadStudySettings().then(setSettings);
@@ -84,7 +69,8 @@ export default function StudyTab() {
 
   const mode = settings.studyMode ?? 'memorize_quiz';
 
-  const start = () => {
+  const handleStart = () => {
+    setShowStartModal(false);
     if (!currentBook) return;
     if (mode === 'memorize_quiz') {
       router.push(`/wordbook/${currentBook.id}/study`);
@@ -205,128 +191,12 @@ export default function StudyTab() {
         </Pressable>
       ) : null}
 
-      {/* 学习目标 */}
-      <Text style={styles.sectionTitle}>学习目标</Text>
-      <View style={styles.card}>
-        <View style={styles.goalTypeRow}>
-          <Chip
-            label="每日目标"
-            active={settings.goalType === 'daily'}
-            onPress={() => update({ goalType: 'daily' })}
-          />
-          <Chip
-            label="截止日期"
-            active={settings.goalType === 'deadline'}
-            onPress={() => update({ goalType: 'deadline' })}
-          />
-        </View>
-        {settings.goalType === 'daily' ? (
-          <Stepper
-            label="每天新学单词数"
-            value={settings.dailyGoal}
-            min={5}
-            max={200}
-            step={5}
-            onChange={(v) => update({ dailyGoal: v })}
-          />
-        ) : (
-          <Stepper
-            label="希望在几天内学完"
-            value={settings.deadlineDays}
-            min={7}
-            max={365}
-            step={7}
-            onChange={(v) => update({ deadlineDays: v })}
-          />
-        )}
-      </View>
-
-      {/* 学习方式 */}
-      <Text style={styles.sectionTitle}>学习方式</Text>
-      <View style={styles.card}>
-        {MODES.map((m, i) => (
-          <View key={m.key}>
-            {i > 0 ? <View style={styles.divider} /> : null}
-            <Pressable
-              disabled={!m.enabled}
-              style={({ pressed }) => [
-                styles.modeRow,
-                (pressed || !m.enabled) && { opacity: 0.6 },
-              ]}
-              onPress={() => update({ studyMode: m.key })}
-            >
-              <Ionicons
-                name={m.icon}
-                size={20}
-                color={m.enabled ? colors.primary : colors.textLight}
-              />
-              <Text style={[styles.modeText, !m.enabled && { color: colors.textLight }]}>
-                {m.title}
-              </Text>
-              {!m.enabled ? (
-                <Text style={styles.soonText}>敬请期待</Text>
-              ) : (
-                <Ionicons
-                  name={mode === m.key ? 'radio-button-on' : 'radio-button-off'}
-                  size={20}
-                  color={mode === m.key ? colors.primary : colors.textLight}
-                />
-              )}
-            </Pressable>
-          </View>
-        ))}
-      </View>
-
-      {/* 本次学习量 */}
-      <Text style={styles.sectionTitle}>本次学习量</Text>
-      <View style={styles.card}>
-        <Stepper
-          label="本次学习单词数"
-          value={settings.dailyWords}
-          min={5}
-          max={200}
-          step={5}
-          onChange={(v) => update({ dailyWords: v })}
-        />
-        {mode === 'ai_reading' ? (
-          <>
-            <View style={styles.divider} />
-            <Stepper
-              label="阅读几篇短文"
-              value={settings.dailyPassages}
-              min={1}
-              max={10}
-              onChange={(v) => update({ dailyPassages: v })}
-            />
-          </>
-        ) : null}
-      </View>
-
-      {/* 选取方式 */}
-      <Text style={styles.sectionTitle}>选取方式</Text>
-      <View style={styles.card}>
-        {PICK_MODES.map((p, i) => (
-          <View key={p.key}>
-            {i > 0 ? <View style={styles.divider} /> : null}
-            <Pressable style={styles.modeRow} onPress={() => update({ pickMode: p.key })}>
-              <Ionicons name={p.icon} size={20} color={colors.primary} />
-              <Text style={styles.modeText}>{p.title}</Text>
-              <Ionicons
-                name={settings.pickMode === p.key ? 'radio-button-on' : 'radio-button-off'}
-                size={20}
-                color={settings.pickMode === p.key ? colors.primary : colors.textLight}
-              />
-            </Pressable>
-          </View>
-        ))}
-      </View>
-
-      {/* 开始学习 */}
+      {/* 开始学习（弹出设置） */}
       <Button
-        label={mode === 'ai_reading' ? '开始阅读学习' : '开始背诵学习'}
+        label="开始学习"
         icon="play"
-        onPress={start}
-        disabled={!currentBook || mode === 'ai_questions'}
+        onPress={() => setShowStartModal(true)}
+        disabled={!currentBook}
         style={{ marginTop: spacing.lg }}
       />
 
@@ -338,6 +208,14 @@ export default function StudyTab() {
         onPress={startReview}
         disabled={!currentBook || stats.dueCount === 0}
         style={{ marginTop: spacing.md }}
+      />
+
+      <StudyStartModal
+        visible={showStartModal}
+        settings={settings}
+        onClose={() => setShowStartModal(false)}
+        onChange={update}
+        onStart={handleStart}
       />
     </ScrollView>
   );
@@ -351,45 +229,6 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
     >
       <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
     </Pressable>
-  );
-}
-
-function Stepper({
-  label,
-  value,
-  min,
-  max,
-  step = 1,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <View style={styles.stepperRow}>
-      <Text style={styles.stepperLabel}>{label}</Text>
-      <View style={styles.stepper}>
-        <Pressable
-          style={({ pressed }) => [styles.stepBtn, pressed && { opacity: 0.6 }]}
-          onPress={() => onChange(Math.max(min, value - step))}
-          hitSlop={6}
-        >
-          <Ionicons name="remove" size={18} color={colors.text} />
-        </Pressable>
-        <Text style={styles.stepValue}>{value}</Text>
-        <Pressable
-          style={({ pressed }) => [styles.stepBtn, pressed && { opacity: 0.6 }]}
-          onPress={() => onChange(Math.min(max, value + step))}
-          hitSlop={6}
-        >
-          <Ionicons name="add" size={18} color={colors.text} />
-        </Pressable>
-      </View>
-    </View>
   );
 }
 
@@ -462,7 +301,6 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   progressLinkText: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.primary },
-  goalTypeRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
@@ -471,36 +309,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     paddingHorizontal: spacing.xs,
   },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-  },
-  modeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: 6,
-  },
-  modeText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text },
-  soonText: { fontSize: 12, color: colors.textLight },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.sm },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  stepperLabel: { fontSize: 15, color: colors.text, fontWeight: '500' },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  stepBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepValue: { fontSize: 17, fontWeight: '700', color: colors.text, minWidth: 32, textAlign: 'center' },
   emptyBook: {
     flexDirection: 'row',
     alignItems: 'center',
