@@ -22,19 +22,17 @@ const PICK_MODES: { key: PickMode; title: string; icon: keyof typeof Ionicons.gl
   { key: 'random', title: '随机选取单词', icon: 'shuffle' },
 ];
 
-/** 「开始学习」前的设置弹窗：学习方式 / 学习目标 / 选取方式（及阅读篇数） */
+/** 学习设置弹窗：学习方式 / 学习目标 / 选取方式（及阅读篇数） */
 export function StudyStartModal({
   visible,
   settings,
   onClose,
   onChange,
-  onStart,
 }: {
   visible: boolean;
   settings: StudySettings;
   onClose: () => void;
   onChange: (patch: Partial<StudySettings>) => void;
-  onStart: () => void;
 }) {
   const mode = settings.studyMode ?? 'memorize_quiz';
 
@@ -137,8 +135,7 @@ export function StudyStartModal({
           </ScrollView>
 
           <View style={styles.actions}>
-            <Button label="取消" variant="ghost" onPress={onClose} style={{ flex: 1 }} />
-            <Button label="开始学习" icon="play" onPress={onStart} style={{ flex: 1 }} disabled={mode === 'ai_questions'} />
+            <Button label="完成" onPress={onClose} style={{ flex: 1 }} />
           </View>
         </View>
       </View>

@@ -71,7 +71,6 @@ export default function StudyTab() {
   const mode = settings.studyMode ?? 'memorize_quiz';
 
   const handleStart = () => {
-    setShowStartModal(false);
     if (!currentBook) return;
     if (mode === 'memorize_quiz') {
       router.push(`/wordbook/${currentBook.id}/study`);
@@ -186,12 +185,12 @@ export default function StudyTab() {
         </Pressable>
       ) : null}
 
-      {/* 开始学习（弹出设置） */}
+      {/* 开始学习 */}
       <Button
         label="开始学习"
         icon="play"
-        onPress={() => setShowStartModal(true)}
-        disabled={!currentBook}
+        onPress={handleStart}
+        disabled={!currentBook || mode === 'ai_questions'}
         style={{ marginTop: spacing.lg }}
       />
 
@@ -205,12 +204,20 @@ export default function StudyTab() {
         style={{ marginTop: spacing.md }}
       />
 
+      {/* 学习设置 */}
+      <Button
+        label="学习设置"
+        icon="settings"
+        variant="ghost"
+        onPress={() => setShowStartModal(true)}
+        style={{ marginTop: spacing.md }}
+      />
+
       <StudyStartModal
         visible={showStartModal}
         settings={settings}
         onClose={() => setShowStartModal(false)}
         onChange={update}
-        onStart={handleStart}
       />
 
       {/* 单词本选择弹窗 */}
