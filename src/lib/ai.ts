@@ -1,4 +1,5 @@
-import { AiProvider, StudySettings } from './studySettings';
+import { StudySettings } from './studySettings';
+import { generateWithDeviceModel } from './localModel';
 
 export type GeneratedPassage = {
   title: string;
@@ -6,27 +7,28 @@ export type GeneratedPassage = {
   glossary: { word: string; meaning: string }[];
 };
 
-/** 一次 AI 调用所需的连接配置（联网或本地，统一 OpenAI 兼容协议） */
-export type AiConfig = {
-  provider: AiProvider;
-  baseUrl: string;
-  model: string;
-  apiKey: string;
-};
+/** 一次 AI 调用所需的连接配置：联网（OpenAI 兼容）或设备端（llama.cpp） */
+export type AiConfig =
+  | { provider: 'online'; baseUrl: string; model: string; apiKey: string }
+  | { provider: 'device'; modelUrl: string; modelName: string };
 
 /** 根据学习设置解析当前生效的 AI 配置 */
 export function getAiConfig(
   s: Pick<
     StudySettings,
-    'aiProvider' | 'aiApiKey' | 'aiBaseUrl' | 'aiModel' | 'localBaseUrl' | 'localModel'
+    | 'aiProvider'
+    | 'aiApiKey'
+    | 'aiBaseUrl'
+    | 'aiModel'
+    | 'deviceModelUrl'
+    | 'deviceModelName'
   >
 ): AiConfig {
-  if (s.aiProvider === 'local') {
+  if (s.aiProvider === 'device') {
     return {
-      provider: 'local',
-      baseUrl: s.localBaseUrl,
-      model: s.localModel,
-      apiKey: '',
+      provider: 'device',
+      modelUrl: s.deviceModelUrl,
+      modelName: s.deviceModelName,
     };
   }
   return {
@@ -98,15 +100,17 @@ const LEVEL_DESC: Record<string, string> = {
   gre: 'GRE 及以下',
 };
 
-/** 统一走 OpenAI 兼容 /chat/completions；apiKey 为空（本地模型）时不带鉴权头 */
+/** 联网模型：统一走 OpenAI 兼容 /chat/completions */
 async function chatCompletion(
-  config: AiConfig,
+  baseUrl: string,
+  model: string,
+  apiKey: string,
   prompt: string,
   opts?: { temperature?: number; maxTokens?: number }
 ): Promise<string> {
-  const url = `${config.baseUrl.replace(/\/$/, '')}/chat/completions`;
+  const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
   let response: Response;
   try {
@@ -114,7 +118,7 @@ async function chatCompletion(
       method: 'POST',
       headers,
       body: JSON.stringify({
-        model: config.model,
+        model,
         messages: [{ role: 'user', content: prompt }],
         temperature: opts?.temperature ?? 0.8,
         ...(opts?.maxTokens ? { max_tokens: opts.maxTokens } : {}),
@@ -135,6 +139,18 @@ async function chatCompletion(
   const content = data.choices?.[0]?.message?.content ?? '';
   if (!content) throw new Error('AI 返回内容为空');
   return content;
+}
+
+/** 按配置分发到联网或设备端模型，返回补全文本 */
+async function completeText(
+  config: AiConfig,
+  prompt: string,
+  opts?: { temperature?: number; maxTokens?: number }
+): Promise<string> {
+  if (config.provider === 'online') {
+    return chatCompletion(config.baseUrl, config.model, config.apiKey, prompt, opts);
+  }
+  return generateWithDeviceModel(prompt, config.modelName, config.modelUrl);
 }
 
 export async function generatePassage(params: {
@@ -165,7 +181,7 @@ ${wordList}
 【输出格式】只输出一个 JSON 对象，不要输出任何其他文字：
 {"title":"文章标题","passage":"文章正文（目标单词用 [[ ]] 包裹）","glossary":[{"word":"目标单词","meaning":"中文释义"}]}`;
 
-  const content = await chatCompletion(config, prompt, { temperature: 0.8 });
+  const content = await completeText(config, prompt, { temperature: 0.8 });
 
   const parsed = extractJson(content) as Partial<GeneratedPassage>;
   if (!parsed.passage || typeof parsed.passage !== 'string') {
@@ -191,7 +207,7 @@ ${wordList}
 
 /** 测试 AI 连接是否可用，返回模型回复的一句话 */
 export async function testAiConnection(config: AiConfig): Promise<string> {
-  const content = await chatCompletion(config, '请只回复两个字：正常', {
+  const content = await completeText(config, '请只回复两个字：正常', {
     temperature: 0,
     maxTokens: 16,
   });

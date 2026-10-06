@@ -11,6 +11,7 @@ import {
 import { useApp } from '../../../lib/AppContext';
 import { buildQuiz, QuizQuestion } from '../../../lib/quiz';
 import { generatePassage, GeneratedPassage, getAiConfig, parsePassage, PassageSegment } from '../../../lib/ai';
+import { getDeviceModelInfo } from '../../../lib/localModel';
 import { pickDailyWords } from '../../../lib/srs';
 import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
 import { colors, radius, spacing } from '../../../lib/theme';
@@ -72,6 +73,13 @@ export default function ReadingScreen() {
     if (config.provider === 'online' && !config.apiKey) {
       setError('请先在「学习设置」中填写联网模型 API Key');
       return;
+    }
+    if (config.provider === 'device') {
+      const info = await getDeviceModelInfo(config.modelName);
+      if (!info.downloaded) {
+        setError('设备端模型尚未下载，请先到「学习设置」中下载模型');
+        return;
+      }
     }
     const words = pickDailyWords(book.words, settings.dailyWords, settings.pickMode);
     if (words.length === 0) {

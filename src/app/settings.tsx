@@ -12,22 +12,48 @@ import {
 } from 'react-native';
 import { LEVEL_SAMPLES } from '../data/levelTestWords';
 import { getAiConfig, testAiConnection } from '../lib/ai';
+import {
+  deleteDeviceModel,
+  DeviceModelInfo,
+  downloadDeviceModel,
+  getDeviceModelInfo,
+  isDeviceModelSupported,
+} from '../lib/localModel';
 import { AiProvider, loadStudySettings, saveStudySettings, StudySettings } from '../lib/studySettings';
 import { colors, radius, spacing } from '../lib/theme';
 
 const PROVIDERS: { key: AiProvider; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'online', label: '联网模型', icon: 'cloud-outline' },
-  { key: 'local', label: '本地模型', icon: 'server-outline' },
+  { key: 'device', label: '设备端模型', icon: 'phone-portrait-outline' },
 ];
+
+function formatMB(bytes?: number): string {
+  if (!bytes) return '';
+  return `${(bytes / 1024 / 1024).toFixed(0)} MB`;
+}
 
 export default function SettingsScreen() {
   const [settings, setSettings] = useState<StudySettings | null>(null);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
+  const [modelInfo, setModelInfo] = useState<DeviceModelInfo | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [modelMsg, setModelMsg] = useState<string | null>(null);
+
   useEffect(() => {
     loadStudySettings().then(setSettings);
   }, []);
+
+  // 切到设备端模型时刷新模型下载状态
+  const aiProvider = settings?.aiProvider;
+  const deviceModelName = settings?.deviceModelName;
+  useEffect(() => {
+    if (aiProvider === 'device' && isDeviceModelSupported() && deviceModelName) {
+      getDeviceModelInfo(deviceModelName).then(setModelInfo);
+    }
+  }, [aiProvider, deviceModelName]);
 
   const update = async (patch: Partial<StudySettings>) => {
     if (!settings) return;
@@ -35,6 +61,7 @@ export default function SettingsScreen() {
     setSettings(next);
     await saveStudySettings(next);
     setTestResult(null);
+    setModelMsg(null);
   };
 
   const testConnection = async () => {
@@ -42,6 +69,13 @@ export default function SettingsScreen() {
     setTesting(true);
     setTestResult(null);
     try {
+      if (settings.aiProvider === 'device') {
+        const info = await getDeviceModelInfo(settings.deviceModelName);
+        if (!info.downloaded) {
+          setTestResult('模型尚未下载，请先点击「下载模型」');
+          return;
+        }
+      }
       const reply = await testAiConnection(getAiConfig(settings));
       setTestResult(`连接成功：${reply}`);
     } catch (e) {
@@ -49,6 +83,31 @@ export default function SettingsScreen() {
     } finally {
       setTesting(false);
     }
+  };
+
+  const downloadModel = async () => {
+    if (!settings) return;
+    setDownloading(true);
+    setModelMsg(null);
+    try {
+      await downloadDeviceModel(settings.deviceModelUrl, settings.deviceModelName, (ratio) => {
+        setDownloadProgress(Math.round(ratio * 100));
+      });
+      setModelInfo(await getDeviceModelInfo(settings.deviceModelName));
+      setModelMsg('模型已就绪');
+    } catch (e) {
+      setModelMsg(`下载失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDownloading(false);
+      setDownloadProgress(null);
+    }
+  };
+
+  const removeModel = async () => {
+    if (!settings) return;
+    await deleteDeviceModel(settings.deviceModelName);
+    setModelInfo(await getDeviceModelInfo(settings.deviceModelName));
+    setModelMsg(null);
   };
 
   if (!settings) return <View style={styles.container} />;
@@ -123,37 +182,67 @@ export default function SettingsScreen() {
               autoCorrect={false}
             />
           </>
+        ) : !isDeviceModelSupported() ? (
+          <Text style={styles.helper}>
+            设备端模型仅支持手机 App（iOS / Android），网页版请切换到「联网模型」。
+          </Text>
         ) : (
           <>
-            <Text style={styles.label}>本地接口地址</Text>
+            <Text style={styles.label}>模型名</Text>
             <TextInput
               style={styles.input}
-              placeholder="http://localhost:11434/v1"
+              placeholder="qwen2.5-1.5b-instruct-q4_k_m"
               placeholderTextColor={colors.textLight}
-              value={settings.localBaseUrl}
-              onChangeText={(v) => update({ localBaseUrl: v.trim() })}
+              value={settings.deviceModelName}
+              onChangeText={(v) => update({ deviceModelName: v.trim() })}
               autoCapitalize="none"
               autoCorrect={false}
             />
 
-            <Text style={styles.label}>本地模型</Text>
+            <Text style={styles.label}>模型下载地址（GGUF）</Text>
             <TextInput
               style={styles.input}
-              placeholder="qwen2.5:1.5b"
+              placeholder="https://huggingface.co/.../model.gguf"
               placeholderTextColor={colors.textLight}
-              value={settings.localModel}
-              onChangeText={(v) => update({ localModel: v.trim() })}
+              value={settings.deviceModelUrl}
+              onChangeText={(v) => update({ deviceModelUrl: v.trim() })}
               autoCapitalize="none"
               autoCorrect={false}
             />
 
             <Text style={styles.helper}>
-              需先在电脑上安装 Ollama（ollama.com）并运行服务，再执行
-              `ollama pull qwen2.5:1.5b` 拉取模型。推荐：qwen2.5:1.5b（约 1GB，推荐）、
-              qwen2.5:0.5b（约 400MB，最低配）、qwen2.5:3b（约 2GB，效果更好）。
-              手机端请把地址改成电脑的局域网 IP（如 http://192.168.1.100:11434/v1）。
-              网页版若提示跨域错误，请用 `OLLAMA_ORIGINS=* ollama serve` 启动服务。
+              模型直接运行在手机本地，无需服务器、无需联网。首次使用需下载约 1GB。
+              推荐：qwen2.5-1.5b-instruct-q4_k_m（约 1GB，推荐）、
+              qwen2.5-0.5b-instruct-q4_k_m（约 400MB，最低配）、
+              qwen2.5-3b-instruct-q4_k_m（约 2GB，效果更好）。
             </Text>
+
+            {/* 下载 / 状态 */}
+            {downloading ? (
+              <View style={styles.downloadBox}>
+                <Text style={styles.helper}>下载中 {downloadProgress ?? 0}%</Text>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${downloadProgress ?? 0}%` }]} />
+                </View>
+              </View>
+            ) : modelInfo?.downloaded ? (
+              <View style={styles.downloadBox}>
+                <Text style={styles.helper}>
+                  已就绪{modelInfo.size ? ` · ${formatMB(modelInfo.size)}` : ''}
+                </Text>
+                <Pressable style={styles.deleteBtn} onPress={removeModel}>
+                  <Ionicons name="trash-outline" size={14} color={colors.danger} />
+                  <Text style={styles.deleteBtnText}>删除模型</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={styles.downloadBtn} onPress={downloadModel}>
+                <Ionicons name="download-outline" size={16} color={colors.primary} />
+                <Text style={styles.downloadBtnText}>下载模型</Text>
+              </Pressable>
+            )}
+
+            {modelMsg ? <Text style={styles.helper}>{modelMsg}</Text> : null}
           </>
         )}
 
@@ -247,6 +336,37 @@ const styles = StyleSheet.create({
   },
   providerBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   providerBtnText: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
+  downloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: spacing.sm,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+  },
+  downloadBtnText: { fontSize: 14, fontWeight: '600', color: colors.primary },
+  downloadBox: { marginTop: spacing.sm },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingVertical: 6,
+  },
+  deleteBtnText: { fontSize: 13, fontWeight: '600', color: colors.danger },
+  progressTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+    marginTop: 6,
+  },
+  progressFill: { height: 8, backgroundColor: colors.primary },
   testConnBtn: {
     flexDirection: 'row',
     alignItems: 'center',
