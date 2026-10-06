@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { LEVEL_SAMPLES, LevelKey, LevelWord, VOCAB_SIZES } from '../data/levelTestWords';
+import { LEVEL_ORDER, LEVEL_SAMPLES, LevelKey, LevelWord, VOCAB_SIZES } from '../data/levelTestWords';
 import { loadStudySettings, saveStudySettings, StudySettings } from '../lib/studySettings';
 import { colors, radius, spacing } from '../lib/theme';
 import { Button } from '../components/ui';
@@ -30,6 +30,31 @@ type LevelResult = {
 const INITIAL_QUESTIONS = 10; // 初始 10 题
 const MAX_QUESTIONS = 50; // 每级最多 50 题
 const PASS_RATE = 0.8; // 80% 通过
+
+// 精确估测词汇量：已通过级别的累计词汇 + 未通过级别的额外词汇按通过率折算
+function estimateVocab(results: LevelResult[]): number {
+  if (results.length === 0) return 0;
+  const passed = results.filter((r) => r.passed);
+  // 未通过任何级别：按第一级（初中）通过率估算
+  if (passed.length === 0) {
+    const first = results[0];
+    const pct = first.total > 0 ? first.correct / first.total : 0;
+    return Math.round(VOCAB_SIZES.junior * pct);
+  }
+  const highest = passed[passed.length - 1].level;
+  const baseVocab = VOCAB_SIZES[highest];
+  const baseIdx = LEVEL_ORDER.indexOf(highest);
+  const nextIdx = baseIdx + 1;
+  if (nextIdx < LEVEL_ORDER.length) {
+    const nextLevel = LEVEL_ORDER[nextIdx];
+    const failed = results.find((r) => r.level === nextLevel && !r.passed);
+    if (failed && failed.total > 0) {
+      const pct = failed.correct / failed.total;
+      return Math.round(baseVocab + pct * (VOCAB_SIZES[nextLevel] - baseVocab));
+    }
+  }
+  return baseVocab;
+}
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -175,8 +200,9 @@ export default function LevelTestScreen() {
   const finish = async (newResults: LevelResult[]) => {
     const passed = newResults.filter((r) => r.passed);
     const highest: LevelKey = passed.length > 0 ? passed[passed.length - 1].level : 'junior';
+    const vocab = estimateVocab(newResults);
     if (settings) {
-      await saveStudySettings({ ...settings, level: highest });
+      await saveStudySettings({ ...settings, level: highest, vocab });
     }
     setResults(newResults);
     setPhase('result');
@@ -204,10 +230,7 @@ export default function LevelTestScreen() {
 
   // ---------- 结果页 ----------
   if (phase === 'result') {
-    const passed = results.filter((r) => r.passed);
-    const highest: LevelKey = passed.length > 0 ? passed[passed.length - 1].level : 'junior';
-    const hasPassed = passed.length > 0;
-    const vocab = hasPassed ? VOCAB_SIZES[highest] : 0;
+    const vocab = estimateVocab(results);
     const last = results[results.length - 1];
     const lastPct = last ? Math.round((last.correct / last.total) * 100) : 0;
 
@@ -220,7 +243,7 @@ export default function LevelTestScreen() {
           </View>
           <Text style={styles.title}>测验完成</Text>
           <Text style={styles.vocabText}>
-            {hasPassed ? `约 ${vocab} 词` : '不足初中水平'}
+            {vocab > 0 ? `约 ${vocab} 词` : '不足初中水平'}
           </Text>
           {last ? (
             <Text style={styles.desc}>

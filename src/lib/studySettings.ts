@@ -8,6 +8,7 @@ export type StudySettings = {
   dailyPassages: number; // 一天读几篇短文
   dailyWords: number; // 一天背多少单词
   level: LevelKey | null; // 词汇水平（来自测验，null 表示未测）
+  vocab: number | null; // 精确估测词汇量（含未通过级别的部分词汇，null 表示未测）
 };
 
 const KEY = 'wordmemo:studySettings:v1';
@@ -19,6 +20,7 @@ export const DEFAULT_SETTINGS: StudySettings = {
   dailyPassages: 2,
   dailyWords: 20,
   level: null,
+  vocab: null,
 };
 
 export async function loadStudySettings(): Promise<StudySettings> {

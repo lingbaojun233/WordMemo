@@ -25,7 +25,13 @@ export default function ProfileScreen() {
     ? LEVEL_SAMPLES.find((s) => s.level === settings.level)
     : undefined;
   const levelLabel = levelSample?.label ?? '';
-  const vocab = levelSample ? VOCAB_SIZES[levelSample.level] : 0;
+  // 优先使用测验保存的精确词汇量，旧数据回退到按级别查表
+  const vocab =
+    settings?.vocab != null
+      ? settings.vocab
+      : levelSample
+      ? VOCAB_SIZES[levelSample.level]
+      : 0;
 
   const confirmLogout = async () => {
     setShowLogoutConfirm(false);
