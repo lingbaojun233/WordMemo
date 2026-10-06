@@ -2,7 +2,6 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StudyMode, StudySettings } from '../lib/studySettings';
-import { boxLabel } from '../lib/srs';
 import { colors, radius, spacing } from '../lib/theme';
 import { PickMode } from '../lib/types';
 import { Button } from './ui';
@@ -71,43 +70,6 @@ export function StudyStartModal({
               ))}
             </View>
 
-            {/* 学习目标 */}
-            <Text style={styles.sectionLabel}>学习目标</Text>
-            <View style={styles.section}>
-              <View style={styles.chipRow}>
-                <Chip label="每日目标" active={settings.goalType === 'daily'} onPress={() => onChange({ goalType: 'daily' })} />
-                <Chip label="截止日期" active={settings.goalType === 'deadline'} onPress={() => onChange({ goalType: 'deadline' })} />
-              </View>
-              {settings.goalType === 'daily' ? (
-                <Stepper
-                  label="每天新学单词数"
-                  value={settings.dailyGoal}
-                  min={5}
-                  max={200}
-                  step={5}
-                  onChange={(v) => onChange({ dailyGoal: v })}
-                />
-              ) : (
-                <Stepper
-                  label="希望在几天内学完"
-                  value={settings.deadlineDays}
-                  min={7}
-                  max={365}
-                  step={7}
-                  onChange={(v) => onChange({ deadlineDays: v })}
-                />
-              )}
-              <View style={styles.divider} />
-              <Stepper
-                label="目标学习程度"
-                value={settings.targetLevel}
-                min={1}
-                max={8}
-                onChange={(v) => onChange({ targetLevel: v })}
-                valueLabel={boxLabel(settings.targetLevel)}
-              />
-            </View>
-
             {/* 阅读篇数（仅 AI 阅读模式） */}
             {mode === 'ai_reading' ? (
               <>
@@ -150,17 +112,6 @@ export function StudyStartModal({
         </View>
       </View>
     </Modal>
-  );
-}
-
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && { opacity: 0.7 }]}
-      onPress={onPress}
-    >
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -236,18 +187,6 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text },
   soonText: { fontSize: 12, color: colors.textLight },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.sm },
-  chipRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 13, color: colors.textMuted },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
   stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   stepperLabel: { fontSize: 15, color: colors.text, fontWeight: '500' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

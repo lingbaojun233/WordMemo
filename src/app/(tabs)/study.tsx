@@ -5,7 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useApp } from '../../lib/AppContext';
 import { loadStudySettings, saveStudySettings, StudySettings } from '../../lib/studySettings';
 import { colors, radius, spacing } from '../../lib/theme';
-import { isDue, isNew } from '../../lib/srs';
+import { boxLabel, isDue, isNew } from '../../lib/srs';
 import { startOfToday } from '../../lib/utils';
 import { Button } from '../../components/ui';
 import { StudyStartModal } from '../../components/StudyStartModal';
@@ -186,6 +186,51 @@ export default function StudyTab() {
         </Pressable>
       ) : null}
 
+      {/* 学习目标 */}
+      <Text style={styles.sectionTitle}>学习目标</Text>
+      <View style={styles.goalSettings}>
+        <View style={styles.chipRow}>
+          <Chip
+            label="每日目标"
+            active={settings.goalType === 'daily'}
+            onPress={() => update({ goalType: 'daily' })}
+          />
+          <Chip
+            label="截止日期"
+            active={settings.goalType === 'deadline'}
+            onPress={() => update({ goalType: 'deadline' })}
+          />
+        </View>
+        {settings.goalType === 'daily' ? (
+          <Stepper
+            label="每天新学单词数"
+            value={settings.dailyGoal}
+            min={5}
+            max={200}
+            step={5}
+            onChange={(v) => update({ dailyGoal: v })}
+          />
+        ) : (
+          <Stepper
+            label="希望在几天内学完"
+            value={settings.deadlineDays}
+            min={7}
+            max={365}
+            step={7}
+            onChange={(v) => update({ deadlineDays: v })}
+          />
+        )}
+        <View style={styles.divider} />
+        <Stepper
+          label="目标学习程度"
+          value={settings.targetLevel}
+          min={1}
+          max={8}
+          onChange={(v) => update({ targetLevel: v })}
+          valueLabel={boxLabel(settings.targetLevel)}
+        />
+      </View>
+
       {/* 开始学习 */}
       <Button
         label="开始学习"
@@ -262,6 +307,58 @@ export default function StudyTab() {
   );
 }
 
+function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && { opacity: 0.7 }]}
+      onPress={onPress}
+    >
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function Stepper({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  onChange,
+  valueLabel,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  onChange: (v: number) => void;
+  valueLabel?: string;
+}) {
+  return (
+    <View style={styles.stepperRow}>
+      <Text style={styles.stepperLabel}>{label}</Text>
+      <View style={styles.stepper}>
+        <Pressable
+          style={({ pressed }) => [styles.stepBtn, pressed && { opacity: 0.6 }]}
+          onPress={() => onChange(Math.max(min, value - step))}
+          hitSlop={6}
+        >
+          <Ionicons name="remove" size={18} color={colors.text} />
+        </Pressable>
+        <Text style={styles.stepValue}>{valueLabel ?? value}</Text>
+        <Pressable
+          style={({ pressed }) => [styles.stepBtn, pressed && { opacity: 0.6 }]}
+          onPress={() => onChange(Math.min(max, value + step))}
+          hitSlop={6}
+        >
+          <Ionicons name="add" size={18} color={colors.text} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, paddingBottom: 40 },
@@ -277,6 +374,40 @@ const styles = StyleSheet.create({
   },
   bookSelectorText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text },
   bookSelectorCount: { fontSize: 12, color: colors.textMuted },
+  goalSettings: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  chipRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontSize: 13, color: colors.textMuted },
+  chipTextActive: { color: '#fff', fontWeight: '600' },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.sm },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  stepperLabel: { fontSize: 15, color: colors.text, fontWeight: '500' },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  stepBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepValue: { fontSize: 17, fontWeight: '700', color: colors.text, minWidth: 32, textAlign: 'center' },
   statsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   statCard: {
     flex: 1,
