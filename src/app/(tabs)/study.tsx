@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../lib/AppContext';
 import { loadStudySettings, saveStudySettings, StudySettings } from '../../lib/studySettings';
 import { colors, radius, spacing } from '../../lib/theme';
@@ -14,6 +14,7 @@ export default function StudyTab() {
   const { wordbooks } = useApp();
   const [settings, setSettings] = useState<StudySettings | null>(null);
   const [showStartModal, setShowStartModal] = useState(false);
+  const [showBookModal, setShowBookModal] = useState(false);
 
   useEffect(() => {
     loadStudySettings().then(setSettings);
@@ -102,7 +103,7 @@ export default function StudyTab() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* 切换单词本 */}
+      {/* 当前单词本（点击打开列表选择） */}
       <Text style={styles.sectionTitle}>当前单词本</Text>
       {wordbooks.length === 0 ? (
         <Pressable style={styles.emptyBook} onPress={() => router.push('/builtin')}>
@@ -110,20 +111,14 @@ export default function StudyTab() {
           <Text style={styles.emptyBookText}>还没有单词本，去内置词库添加</Text>
         </Pressable>
       ) : (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.bookSwitch}
-        >
-          {wordbooks.map((b) => (
-            <Chip
-              key={b.id}
-              label={b.name}
-              active={b.id === currentBook?.id}
-              onPress={() => update({ currentBookId: b.id })}
-            />
-          ))}
-        </ScrollView>
+        <Pressable style={styles.bookSelector} onPress={() => setShowBookModal(true)}>
+          <Ionicons name="book" size={18} color={colors.primary} />
+          <Text style={styles.bookSelectorText}>{currentBook?.name ?? '选择单词本'}</Text>
+          <Text style={styles.bookSelectorCount}>
+            {currentBook ? `${currentBook.words.length} 词` : ''}
+          </Text>
+          <Ionicons name="chevron-down" size={16} color={colors.textLight} />
+        </Pressable>
       )}
 
       {/* 当前词本统计 */}
@@ -217,36 +212,63 @@ export default function StudyTab() {
         onChange={update}
         onStart={handleStart}
       />
-    </ScrollView>
-  );
-}
 
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && { opacity: 0.7 }]}
-      onPress={onPress}
-    >
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-    </Pressable>
+      {/* 单词本选择弹窗 */}
+      <Modal
+        visible={showBookModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBookModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>选择单词本</Text>
+            <ScrollView style={styles.modalList}>
+              {wordbooks.map((b) => (
+                <Pressable
+                  key={b.id}
+                  style={styles.bookRow}
+                  onPress={() => {
+                    update({ currentBookId: b.id });
+                    setShowBookModal(false);
+                  }}
+                >
+                  <Ionicons name="book" size={18} color={colors.primary} />
+                  <View style={styles.bookRowBody}>
+                    <Text style={styles.bookRowName}>{b.name}</Text>
+                    <Text style={styles.bookRowCount}>{b.words.length} 词</Text>
+                  </View>
+                  {b.id === currentBook?.id ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                  ) : (
+                    <Ionicons name="ellipse-outline" size={20} color={colors.textLight} />
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Button label="关闭" variant="ghost" onPress={() => setShowBookModal(false)} />
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, paddingBottom: 40 },
-  bookSwitch: { flexDirection: 'row', gap: spacing.sm, paddingVertical: 2 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radius.full,
+  bookSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     backgroundColor: colors.card,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    padding: spacing.md,
   },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 13, color: colors.textMuted },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
+  bookSelectorText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text },
+  bookSelectorCount: { fontSize: 12, color: colors.textMuted },
   statsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   statCard: {
     flex: 1,
@@ -318,4 +340,29 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   emptyBookText: { flex: 1, fontSize: 14, color: colors.primaryDark },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    maxHeight: '85%',
+  },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: spacing.sm },
+  modalList: { flexShrink: 1, marginBottom: spacing.md },
+  bookRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  bookRowBody: { flex: 1 },
+  bookRowName: { fontSize: 15, fontWeight: '600', color: colors.text },
+  bookRowCount: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
 });
