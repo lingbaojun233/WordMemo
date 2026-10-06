@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, Stack } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LEVEL_ORDER, LEVEL_SAMPLES, LevelKey, LevelWord, VOCAB_SIZES } from '../data/levelTestWords';
@@ -91,6 +91,7 @@ function makeQuestion(queue: LevelWord[], allWords: LevelWord[]): QuizQ {
 }
 
 export default function LevelTestScreen() {
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const [settings, setSettings] = useState<StudySettings | null>(null);
   const [phase, setPhase] = useState<Phase>('intro');
 
@@ -281,7 +282,18 @@ export default function LevelTestScreen() {
           <Text style={styles.descMuted}>
             系统将根据该水平生成你能读懂的短文（文中除目标生词外，均使用该水平及以下的词汇）。
           </Text>
-          <Button label="完成" icon="checkmark" onPress={() => router.back()} style={{ alignSelf: 'stretch' }} />
+          <Button
+            label="完成"
+            icon="checkmark"
+            onPress={() => {
+              if (from === 'onboarding') {
+                router.replace('/onboarding-recommend');
+              } else {
+                router.back();
+              }
+            }}
+            style={{ alignSelf: 'stretch' }}
+          />
         </ScrollView>
       </View>
     );

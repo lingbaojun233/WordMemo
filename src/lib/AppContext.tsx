@@ -29,6 +29,7 @@ import {
   saveUsers,
 } from '../lib/authStorage';
 import { BuiltinBookKey, getBuiltinBook } from '../data/builtinBooks';
+import { loadStudySettings, saveStudySettings } from '../lib/studySettings';
 
 type State = {
   users: User[];
@@ -36,12 +37,14 @@ type State = {
   wordbooks: Wordbook[];
   authReady: boolean; // 用户与会话加载完成
   dataLoaded: boolean; // 当前用户的词库加载完成
+  onboardingDone: boolean; // 是否已完成注册引导
 };
 
 type Action =
-  | { type: 'INIT'; users: User[]; currentUser: User | null; wordbooks: Wordbook[] }
-  | { type: 'SET_USER'; user: User; users: User[]; wordbooks: Wordbook[] }
+  | { type: 'INIT'; users: User[]; currentUser: User | null; wordbooks: Wordbook[]; onboardingDone: boolean }
+  | { type: 'SET_USER'; user: User; users: User[]; wordbooks: Wordbook[]; onboardingDone: boolean }
   | { type: 'LOGOUT' }
+  | { type: 'COMPLETE_ONBOARDING' }
   | { type: 'CREATE_BOOK'; id: string; name: string; description?: string }
   | {
       type: 'ADD_BUILTIN_BOOK';
@@ -143,6 +146,7 @@ function reducer(state: State, action: Action): State {
         wordbooks: action.wordbooks,
         authReady: true,
         dataLoaded: true,
+        onboardingDone: action.onboardingDone,
       };
 
     case 'SET_USER':
@@ -152,6 +156,7 @@ function reducer(state: State, action: Action): State {
         wordbooks: action.wordbooks,
         authReady: true,
         dataLoaded: true,
+        onboardingDone: action.onboardingDone,
       };
 
     case 'LOGOUT':
@@ -161,6 +166,9 @@ function reducer(state: State, action: Action): State {
         wordbooks: [],
         dataLoaded: true,
       };
+
+    case 'COMPLETE_ONBOARDING':
+      return { ...state, onboardingDone: true };
 
     case 'CREATE_BOOK': {
       const book: Wordbook = {
@@ -317,6 +325,8 @@ type AppContextValue = {
   authReady: boolean;
   isLoggedIn: boolean;
   loaded: boolean; // 当前用户词库是否已加载
+  onboardingDone: boolean; // 是否已完成注册引导
+  completeOnboarding: () => Promise<void>; // 完成引导
   register: (username: string, password: string) => Promise<AuthResult>;
   login: (username: string, password: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
@@ -344,6 +354,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     wordbooks: [],
     authReady: false,
     dataLoaded: false,
+    onboardingDone: false,
   });
 
   // 让回调始终能读到最新状态
@@ -361,7 +372,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const wordbooks = currentUser
         ? reconcileProgress(await loadWordbooks(currentUser.id))
         : [];
-      dispatch({ type: 'INIT', users, currentUser, wordbooks });
+      const settings = await loadStudySettings();
+      dispatch({
+        type: 'INIT',
+        users,
+        currentUser,
+        wordbooks,
+        onboardingDone: settings.onboardingDone,
+      });
     })();
   }, []);
 
@@ -400,9 +418,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const users = [...stateRef.current.users, user];
       await saveUsers(users);
       await saveSessionUserId(user.id);
+      // 新注册用户需要走引导流程：重置引导状态与学习模式
+      const settings = await loadStudySettings();
+      await saveStudySettings({ ...settings, onboardingDone: false, studyMode: null });
 
       const books = reconcileProgress(await loadWordbooks(user.id));
-      dispatch({ type: 'SET_USER', user, users, wordbooks: books });
+      dispatch({
+        type: 'SET_USER',
+        user,
+        users,
+        wordbooks: books,
+        onboardingDone: false,
+      });
       return { ok: true, user };
     },
     []
@@ -428,6 +455,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         user,
         users: stateRef.current.users,
         wordbooks: books,
+        onboardingDone: stateRef.current.onboardingDone,
       });
       return { ok: true, user };
     },
@@ -437,6 +465,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     await clearSession();
     dispatch({ type: 'LOGOUT' });
+  }, []);
+
+  const completeOnboarding = useCallback(async () => {
+    const settings = await loadStudySettings();
+    await saveStudySettings({ ...settings, onboardingDone: true });
+    dispatch({ type: 'COMPLETE_ONBOARDING' });
   }, []);
 
   const createBook = useCallback((name: string, description?: string) => {
@@ -557,6 +591,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       authReady: state.authReady,
       isLoggedIn: state.currentUser !== null,
       loaded: state.dataLoaded,
+      onboardingDone: state.onboardingDone,
+      completeOnboarding,
       register,
       login,
       logout,
@@ -577,6 +613,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       state.wordbooks,
       state.authReady,
       state.dataLoaded,
+      state.onboardingDone,
+      completeOnboarding,
       register,
       login,
       logout,

@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LevelKey } from '../data/levelTestWords';
 
+// 学习模式
+export type StudyMode = 'memorize_quiz' | 'ai_reading' | 'ai_questions';
+
 export type StudySettings = {
   aiApiKey: string;
   aiBaseUrl: string;
@@ -9,6 +12,8 @@ export type StudySettings = {
   dailyWords: number; // 一天背多少单词
   level: LevelKey | null; // 词汇水平（来自测验，null 表示未测）
   vocab: number | null; // 精确估测词汇量（含未通过级别的部分词汇，null 表示未测）
+  studyMode: StudyMode | null; // 学习模式（null 表示未选择）
+  onboardingDone: boolean; // 是否已完成注册引导
 };
 
 const KEY = 'wordmemo:studySettings:v1';
@@ -21,6 +26,8 @@ export const DEFAULT_SETTINGS: StudySettings = {
   dailyWords: 20,
   level: null,
   vocab: null,
+  studyMode: null,
+  onboardingDone: false,
 };
 
 export async function loadStudySettings(): Promise<StudySettings> {

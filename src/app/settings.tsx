@@ -36,6 +36,31 @@ export default function SettingsScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Stack.Screen options={{ title: '学习设置', headerBackTitle: '返回' }} />
 
+      <Text style={styles.sectionTitle}>学习模式</Text>
+      <View style={styles.card}>
+        <ModeRow
+          title="先背诵后测验"
+          desc="传统模式：先记忆单词释义，再选对释义提升等级"
+          active={settings.studyMode === 'memorize_quiz'}
+          onPress={() => update({ studyMode: 'memorize_quiz' })}
+        />
+        <View style={styles.divider} />
+        <ModeRow
+          title="AI 写短文，阅读后测验"
+          desc="AI 生成包含生词的短文，阅读后再做题"
+          active={settings.studyMode === 'ai_reading'}
+          onPress={() => update({ studyMode: 'ai_reading' })}
+        />
+        <View style={styles.divider} />
+        <ModeRow
+          title="AI 出题，学习后完成"
+          desc="敬请期待，后续版本推出"
+          active={settings.studyMode === 'ai_questions'}
+          disabled
+          onPress={() => {}}
+        />
+      </View>
+
       <Text style={styles.sectionTitle}>AI 服务</Text>
       <View style={styles.card}>
         <Text style={styles.label}>API Key</Text>
@@ -117,6 +142,38 @@ export default function SettingsScreen() {
         </Text>
       </View>
     </ScrollView>
+  );
+}
+
+function ModeRow({
+  title,
+  desc,
+  active,
+  disabled,
+  onPress,
+}: {
+  title: string;
+  desc: string;
+  active: boolean;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      disabled={disabled}
+      style={({ pressed }) => [styles.modeRow, (pressed || disabled) && { opacity: 0.7 }]}
+      onPress={onPress}
+    >
+      <View style={styles.modeBody}>
+        <Text style={styles.modeTitle}>{title}</Text>
+        <Text style={styles.modeDesc}>{desc}</Text>
+      </View>
+      <Ionicons
+        name={active ? 'radio-button-on' : 'radio-button-off'}
+        size={20}
+        color={active ? colors.primary : colors.textLight}
+      />
+    </Pressable>
   );
 }
 
@@ -209,6 +266,10 @@ const styles = StyleSheet.create({
   },
   stepValue: { fontSize: 17, fontWeight: '700', color: colors.text, minWidth: 32, textAlign: 'center' },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.md },
+  modeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  modeBody: { flex: 1 },
+  modeTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
+  modeDesc: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   levelRow: { flexDirection: 'row', alignItems: 'center' },
   levelValue: { fontSize: 22, fontWeight: '800', color: colors.primary, marginTop: 2 },
   testBtn: {

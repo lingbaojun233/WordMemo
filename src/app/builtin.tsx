@@ -17,10 +17,10 @@ export default function BuiltinScreen() {
     // 先让加载态渲染出来，再执行较重的词库构建
     setTimeout(() => {
       const id = addBuiltinBook(key);
+      setLoadingKey(null);
       if (id) {
-        router.replace(`/wordbook/${id}`);
-      } else {
-        setLoadingKey(null);
+        // 添加后返回单词本列表，而不是进入该单词本
+        router.back();
       }
     }, 60);
   };
