@@ -68,7 +68,6 @@ function RootNavigator() {
           <Stack.Screen name="wordbook/[id]/index" options={{ title: '单词本' }} />
           <Stack.Screen name="wordbook/[id]/reading" options={{ title: 'AI 短文阅读' }} />
           <Stack.Screen name="wordbook/[id]/study" options={{ title: '背诵' }} />
-          <Stack.Screen name="wordbook/[id]/import" options={{ title: '批量导入' }} />
         </Stack.Protected>
 
         {/* 未登录：登录/注册 */}

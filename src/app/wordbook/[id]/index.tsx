@@ -209,20 +209,6 @@ export default function WordbookDetailScreen() {
         />
       </View>
 
-      {/* 单词管理 */}
-      <View style={styles.manageSection}>
-        <Text style={styles.sectionLabel}>单词管理</Text>
-        <View style={styles.manageRow}>
-          <Button
-            label="导入"
-            icon="download"
-            variant="outline"
-            onPress={() => router.push(`/wordbook/${book.id}/import`)}
-            style={{ flex: 1 }}
-          />
-        </View>
-      </View>
-
       {/* 单词列表 */}
       {words.length === 0 ? (
         <EmptyState
@@ -231,7 +217,7 @@ export default function WordbookDetailScreen() {
           description={
             inBook === 'out'
               ? '换个关键词或级别筛选试试'
-              : '点击「导入」批量导入词汇，或从内置词库添加'
+              : '从内置词库添加词汇'
           }
         />
       ) : inBook === 'out' ? (
@@ -318,17 +304,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     gap: spacing.sm,
   },
-  manageSection: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textLight,
-    marginBottom: spacing.sm,
-  },
-  manageRow: { flexDirection: 'row', gap: spacing.md },
   wordRow: {
     flexDirection: 'row',
     alignItems: 'center',

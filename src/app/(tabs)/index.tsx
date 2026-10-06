@@ -18,17 +18,9 @@ import { Button, EmptyState } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 export default function HomeScreen() {
-  const { wordbooks, loaded, createBook, deleteBook } = useApp();
-  const [showCreate, setShowCreate] = useState(false);
+  const { wordbooks, loaded, deleteBook } = useApp();
   const [editing, setEditing] = useState<Wordbook | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Wordbook | null>(null);
-
-  const handleCreate = (name: string, description?: string) => {
-    const id = createBook(name, description);
-    setShowCreate(false);
-    setEditing(null);
-    router.push(`/wordbook/${id}`);
-  };
 
   const confirmDelete = () => {
     if (deleteTarget) {
@@ -89,7 +81,7 @@ export default function HomeScreen() {
         <EmptyState
           icon="library-outline"
           title="还没有单词本"
-          description="从内置词库添加四级/六级词汇，或创建自己的单词本"
+          description="从内置词库添加词汇（初中到 GRE）"
         />
       ) : (
         <FlatList
@@ -105,31 +97,18 @@ export default function HomeScreen() {
 
       {/* 底部操作区 */}
       <View style={styles.footer}>
-        <View style={styles.footerRow}>
-          <Button
-            label="内置词库"
-            icon="library"
-            variant="outline"
-            onPress={() => router.push('/builtin')}
-            style={{ flex: 1 }}
-          />
-          <Button
-            label="新建"
-            icon="add"
-            onPress={() => setShowCreate(true)}
-            style={{ flex: 1 }}
-          />
-        </View>
+        <Button
+          label="内置词库"
+          icon="library"
+          variant="outline"
+          onPress={() => router.push('/builtin')}
+        />
       </View>
 
-      <CreateBookModal
-        visible={showCreate || editing !== null}
+      <RenameBookModal
+        visible={editing !== null}
         book={editing}
-        onClose={() => {
-          setShowCreate(false);
-          setEditing(null);
-        }}
-        onCreate={handleCreate}
+        onClose={() => setEditing(null)}
       />
 
       <ConfirmDialog
@@ -145,28 +124,22 @@ export default function HomeScreen() {
   );
 }
 
-function CreateBookModal({
+function RenameBookModal({
   visible,
   book,
   onClose,
-  onCreate,
 }: {
   visible: boolean;
   book: Wordbook | null;
   onClose: () => void;
-  onCreate: (name: string, description?: string) => void;
 }) {
   const { renameBook } = useApp();
 
-  const submit = (name: string, desc: string) => {
+  const submit = (name: string) => {
     const n = name.trim();
-    if (!n) return;
-    if (book) {
-      renameBook(book.id, n);
-      onClose();
-    } else {
-      onCreate(n, desc.trim() || undefined);
-    }
+    if (!n || !book) return;
+    renameBook(book.id, n);
+    onClose();
   };
 
   return (
@@ -174,7 +147,7 @@ function CreateBookModal({
       <View style={styles.modalOverlay}>
         <View style={styles.modalCard}>
           <BookForm
-            key={visible ? book?.id ?? 'new' : 'closed'}
+            key={visible ? book?.id ?? 'closed' : 'closed'}
             book={book}
             onSubmit={submit}
             onCancel={onClose}
@@ -191,39 +164,28 @@ function BookForm({
   onCancel,
 }: {
   book: Wordbook | null;
-  onSubmit: (name: string, desc: string) => void;
+  onSubmit: (name: string) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(book?.name ?? '');
-  const [desc, setDesc] = useState(book?.description ?? '');
 
   return (
     <>
-      <Text style={styles.modalTitle}>
-        {book ? '重命名单词本' : '新建单词本'}
-      </Text>
+      <Text style={styles.modalTitle}>重命名单词本</Text>
       <TextInput
         style={styles.input}
-        placeholder="单词本名称（如：CET-4 核心词）"
+        placeholder="单词本名称"
         placeholderTextColor={colors.textLight}
         value={name}
         onChangeText={setName}
         autoFocus
         maxLength={40}
       />
-      <TextInput
-        style={[styles.input, styles.inputDesc]}
-        placeholder="备注（可选）"
-        placeholderTextColor={colors.textLight}
-        value={desc}
-        onChangeText={setDesc}
-        maxLength={80}
-      />
       <View style={styles.modalActions}>
         <Button label="取消" variant="ghost" onPress={onCancel} style={{ flex: 1 }} />
         <Button
           label="确定"
-          onPress={() => onSubmit(name, desc)}
+          onPress={() => onSubmit(name)}
           disabled={!name.trim()}
           style={{ flex: 1 }}
         />
@@ -287,7 +249,6 @@ const styles = StyleSheet.create({
     right: spacing.md,
     bottom: spacing.lg,
   },
-  footerRow: { flexDirection: 'row', gap: spacing.md },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -311,6 +272,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     marginBottom: spacing.md,
   },
-  inputDesc: { minHeight: 48, textAlignVertical: 'top' },
   modalActions: { flexDirection: 'row', gap: spacing.md },
 });
