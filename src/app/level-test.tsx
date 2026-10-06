@@ -49,10 +49,11 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// 随机出一道题：英译中 / 中译英，8 个选项，干扰项优先同词性
-function makeQuestion(words: LevelWord[]): QuizQ {
-  const target = words[Math.floor(Math.random() * words.length)];
-  const pool = words.filter((w) => w.t !== target.t);
+// 随机出一道题：英译中 / 中译英，8 个选项，干扰项优先同词性。
+// queue 为当前级别尚未用于出题的词（按序取第一个作为本题目标词），确保同一级别不重复出同一个词。
+function makeQuestion(queue: LevelWord[], allWords: LevelWord[]): QuizQ {
+  const target = queue[0];
+  const pool = allWords.filter((w) => w.t !== target.t);
   const samePos = pool.filter((w) => w.p === target.p);
   const candidates = shuffle([...samePos, ...shuffle(pool)]);
   const distractors: LevelWord[] = [];
@@ -79,6 +80,7 @@ export default function LevelTestScreen() {
 
   const [levelIdx, setLevelIdx] = useState(0);
   const [results, setResults] = useState<LevelResult[]>([]);
+  const [queue, setQueue] = useState<LevelWord[]>([]);
   const [question, setQuestion] = useState<QuizQ | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [correct, setCorrect] = useState(0);
@@ -91,14 +93,22 @@ export default function LevelTestScreen() {
 
   const currentSample = LEVEL_SAMPLES[levelIdx];
 
+  // 从队列中取出下一个词出题，并更新队列（确保同一级别不重复出同一个词）
+  const askNext = (nextQueue: LevelWord[], allWords: LevelWord[]) => {
+    setQuestion(makeQuestion(nextQueue, allWords));
+    setQueue(nextQueue.slice(1));
+    setPicked(null);
+  };
+
   const start = () => {
+    const words = LEVEL_SAMPLES[0].words;
+    const q0 = shuffle(words);
     setLevelIdx(0);
     setResults([]);
     setCorrect(0);
     setTotal(0);
     setAdditional(false);
-    setPicked(null);
-    setQuestion(makeQuestion(LEVEL_SAMPLES[0].words));
+    askNext(q0, words);
     setPhase('test');
   };
 
@@ -134,11 +144,9 @@ export default function LevelTestScreen() {
         failLevel(nc, nt);
       } else if (action === 'additional') {
         setAdditional(true);
-        setPicked(null);
-        setQuestion(makeQuestion(currentSample.words));
+        askNext(queue, currentSample.words);
       } else {
-        setPicked(null);
-        setQuestion(makeQuestion(currentSample.words));
+        askNext(queue, currentSample.words);
       }
     }, 550);
   };
@@ -151,13 +159,14 @@ export default function LevelTestScreen() {
     ];
     const nextIdx = levelIdx + 1;
     if (nextIdx < LEVEL_SAMPLES.length) {
+      const nextWords = LEVEL_SAMPLES[nextIdx].words;
+      const q0 = shuffle(nextWords);
       setLevelIdx(nextIdx);
       setResults(newResults);
       setCorrect(0);
       setTotal(0);
       setAdditional(false);
-      setPicked(null);
-      setQuestion(makeQuestion(LEVEL_SAMPLES[nextIdx].words));
+      askNext(q0, nextWords);
     } else {
       finish(newResults);
     }
