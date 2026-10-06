@@ -3,40 +3,12 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
+import { buildQuiz, QuizQuestion } from '../../../lib/quiz';
 import { isDue, isNew } from '../../../lib/srs';
 import { colors, radius, spacing } from '../../../lib/theme';
-import { Word } from '../../../lib/types';
 import { Button, EmptyState } from '../../../components/ui';
 
 type Phase = 'intro' | 'quiz' | 'done';
-
-type QuizQ = {
-  id: string;
-  term: string;
-  correct: string;
-  options: string[];
-};
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-// 每个到期单词生成一道四选一「选对释义」题
-function buildQuiz(words: Word[]): QuizQ[] {
-  return words.map((w, i) => {
-    const others = words.filter((_, j) => j !== i).map((x) => x.meaning);
-    const distractors = shuffle(others).slice(0, 3);
-    const options = shuffle(
-      [w.meaning, ...distractors].filter((v, idx, arr) => arr.indexOf(v) === idx)
-    );
-    return { id: w.id, term: w.term, correct: w.meaning, options };
-  });
-}
 
 export default function ReviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -44,7 +16,7 @@ export default function ReviewScreen() {
   const book = wordbooks.find((b) => b.id === id);
 
   const [phase, setPhase] = useState<Phase>('intro');
-  const [quiz, setQuiz] = useState<QuizQ[]>([]);
+  const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
   const [idx, setIdx] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
@@ -66,7 +38,7 @@ export default function ReviewScreen() {
   }
 
   const start = () => {
-    const qs = buildQuiz(due);
+    const qs = buildQuiz(due, book.words);
     setQuiz(qs);
     setIdx(0);
     setPicked(null);

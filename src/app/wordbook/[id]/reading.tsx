@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
+import { buildQuiz, QuizQuestion } from '../../../lib/quiz';
 import { generatePassage, GeneratedPassage, parsePassage, PassageSegment } from '../../../lib/ai';
 import { pickDailyWords } from '../../../lib/srs';
 import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
@@ -19,8 +20,6 @@ import { LEVEL_SAMPLES } from '../../../data/levelTestWords';
 
 type Phase = 'intro' | 'generating' | 'reading' | 'test' | 'result';
 
-type QuizQuestion = { term: string; correct: string; options: string[] };
-
 function chunkEvenly<T>(arr: T[], count: number): T[][] {
   if (count <= 0 || arr.length === 0) return [];
   const size = Math.ceil(arr.length / count);
@@ -29,24 +28,6 @@ function chunkEvenly<T>(arr: T[], count: number): T[][] {
     chunks.push(arr.slice(i, i + size));
   }
   return chunks;
-}
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-function buildQuiz(words: { term: string; meaning: string }[]): QuizQuestion[] {
-  return words.map((w, i) => {
-    const others = words.filter((_, j) => j !== i).map((x) => x.meaning);
-    const distractors = shuffle(others).slice(0, 3);
-    const options = shuffle([w.meaning, ...distractors].filter((v, idx, arr) => arr.indexOf(v) === idx));
-    return { term: w.term, correct: w.meaning, options };
-  });
 }
 
 export default function ReadingScreen() {
@@ -126,7 +107,7 @@ export default function ReadingScreen() {
   };
 
   const beginTest = () => {
-    setQuiz(buildQuiz(targetWords.map((w) => ({ term: w.term, meaning: w.meaning }))));
+    setQuiz(buildQuiz(targetWords, book.words));
     setQuizIdx(0);
     setPicked(null);
     setCorrectCount(0);
@@ -140,8 +121,7 @@ export default function ReadingScreen() {
     const isCorrect = option === q.correct;
     if (isCorrect) setCorrectCount((c) => c + 1);
     // 更新记忆进度
-    const w = targetWords.find((x) => x.term.toLowerCase() === q.term.toLowerCase());
-    if (w) reviewWord(book.id, w.id, isCorrect ? 'good' : 'again');
+    reviewWord(book.id, q.id, isCorrect ? 'good' : 'again');
     // 选完后短暂显示对错，自动进入下一题
     setTimeout(() => {
       if (quizIdx + 1 < quiz.length) {

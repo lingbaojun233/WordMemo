@@ -3,43 +3,14 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
+import { buildQuiz, QuizQuestion } from '../../../lib/quiz';
 import { isNew, pickDailyWords } from '../../../lib/srs';
 import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
 import { colors, radius, spacing } from '../../../lib/theme';
-import { Word } from '../../../lib/types';
 import { Button, EmptyState } from '../../../components/ui';
 
 type Phase = 'intro' | 'study' | 'done';
 type SubPhase = 'memorize' | 'choose';
-
-type QuizQ = {
-  id: string;
-  term: string;
-  correct: string;
-  options: string[];
-  derivatives?: { term: string; meaning: string }[];
-};
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-// 每个单词生成一道四选一「选对释义」题
-function buildQuiz(words: Word[]): QuizQ[] {
-  return words.map((w, i) => {
-    const others = words.filter((_, j) => j !== i).map((x) => x.meaning);
-    const distractors = shuffle(others).slice(0, 3);
-    const options = shuffle(
-      [w.meaning, ...distractors].filter((v, idx, arr) => arr.indexOf(v) === idx)
-    );
-    return { id: w.id, term: w.term, correct: w.meaning, options, derivatives: w.derivatives };
-  });
-}
 
 export default function StudyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -48,7 +19,7 @@ export default function StudyScreen() {
 
   const [settings, setSettings] = useState<StudySettings | null>(null);
   const [phase, setPhase] = useState<Phase>('intro');
-  const [quiz, setQuiz] = useState<QuizQ[]>([]);
+  const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
   const [idx, setIdx] = useState(0);
   const [subPhase, setSubPhase] = useState<SubPhase>('memorize');
   const [picked, setPicked] = useState<string | null>(null);
@@ -78,7 +49,7 @@ export default function StudyScreen() {
   }
 
   const start = () => {
-    const qs = buildQuiz(selected);
+    const qs = buildQuiz(selected, book.words);
     setQuiz(qs);
     setIdx(0);
     setSubPhase('memorize');
