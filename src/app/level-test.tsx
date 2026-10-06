@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LEVEL_ORDER, LEVEL_SAMPLES, LevelKey, LevelSample } from '../data/levelTestWords';
 import { loadStudySettings, saveStudySettings, StudySettings } from '../lib/studySettings';
 import { colors, radius, spacing } from '../lib/theme';
@@ -44,13 +44,35 @@ function estimateLevel(questions: QuizQ[], answers: boolean[]): LevelKey {
     total.set(q.level, (total.get(q.level) ?? 0) + 1);
     if (answers[i]) correct.set(q.level, (correct.get(q.level) ?? 0) + 1);
   });
+  // 逐级判断：某级答对率达到 70% 视为「掌握」，一旦某级不达标就不再考虑更高（更难）的级别，
+  // 避免靠蒙对把水平高估到专八/GRE。
   let level: LevelKey = 'junior';
   for (const key of LEVEL_ORDER) {
     const t = total.get(key) ?? 0;
     const c = correct.get(key) ?? 0;
-    if (t > 0 && c / t >= 0.6) level = key;
+    if (t > 0 && c / t >= 0.7) {
+      level = key;
+    } else {
+      break;
+    }
   }
   return level;
+}
+
+type LevelRate = { level: LevelKey; label: string; correct: number; total: number; rate: number };
+
+function computeRates(questions: QuizQ[], answers: boolean[]): LevelRate[] {
+  return LEVEL_SAMPLES.map((s) => {
+    let total = 0;
+    let correct = 0;
+    questions.forEach((q, i) => {
+      if (q.level === s.level) {
+        total++;
+        if (answers[i]) correct++;
+      }
+    });
+    return { level: s.level, label: s.label, correct, total, rate: total > 0 ? correct / total : 0 };
+  });
 }
 
 export default function LevelTestScreen() {
@@ -61,6 +83,7 @@ export default function LevelTestScreen() {
   const [picked, setPicked] = useState<string | null>(null);
   const [answers, setAnswers] = useState<boolean[]>([]);
   const [result, setResult] = useState<LevelKey | null>(null);
+  const [rates, setRates] = useState<LevelRate[]>([]);
 
   useEffect(() => {
     loadStudySettings().then(setSettings);
@@ -95,6 +118,7 @@ export default function LevelTestScreen() {
   const finish = async (finalAnswers: boolean[]) => {
     const level = estimateLevel(questions, finalAnswers);
     setResult(level);
+    setRates(computeRates(questions, finalAnswers));
     setPhase('result');
     if (settings) {
       await saveStudySettings({ ...settings, level });
@@ -127,18 +151,43 @@ export default function LevelTestScreen() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ title: '词汇水平测验', headerBackTitle: '返回' }} />
-        <View style={styles.center}>
+        <ScrollView contentContainerStyle={styles.resultScroll}>
           <View style={[styles.heroIcon, { backgroundColor: '#D1FAE5' }]}>
             <Ionicons name="trophy" size={40} color={colors.success} />
           </View>
           <Text style={styles.title}>测验完成</Text>
           <Text style={styles.desc}>估测你的词汇水平为</Text>
           <Text style={styles.resultLevel}>{label}</Text>
+
+          <View style={styles.rateCard}>
+            <Text style={styles.rateTitle}>各级答对情况（≥70% 视为掌握）</Text>
+            {rates.map((r) => {
+              const pct = Math.round(r.rate * 100);
+              const reached = r.rate >= 0.7;
+              return (
+                <View key={r.level} style={styles.rateRow}>
+                  <Text style={styles.rateLabel}>{r.label}</Text>
+                  <View style={styles.rateTrack}>
+                    <View
+                      style={[
+                        styles.rateFill,
+                        { width: `${pct}%`, backgroundColor: reached ? colors.success : colors.warning },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.rateValue, { color: reached ? colors.success : colors.textMuted }]}>
+                    {r.correct}/{r.total}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+
           <Text style={styles.descMuted}>
             系统将根据该水平生成你能读懂的短文（文中除目标生词外，均使用该水平及以下的词汇）。
           </Text>
           <Button label="完成" icon="checkmark" onPress={() => router.back()} style={{ alignSelf: 'stretch' }} />
-        </View>
+        </ScrollView>
       </View>
     );
   }
@@ -212,6 +261,33 @@ const styles = StyleSheet.create({
   desc: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 21 },
   descMuted: { fontSize: 12, color: colors.textLight, textAlign: 'center', lineHeight: 18 },
   resultLevel: { fontSize: 40, fontWeight: '800', color: colors.primary },
+  resultScroll: {
+    alignItems: 'center',
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: 40,
+  },
+  rateCard: {
+    alignSelf: 'stretch',
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  rateTitle: { fontSize: 13, fontWeight: '700', color: colors.textMuted, marginBottom: 2 },
+  rateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  rateLabel: { width: 40, fontSize: 13, color: colors.text },
+  rateTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+  },
+  rateFill: { height: 8, borderRadius: 4 },
+  rateValue: { width: 36, fontSize: 12, fontWeight: '700', textAlign: 'right' },
   progressWrap: {
     flexDirection: 'row',
     alignItems: 'center',
