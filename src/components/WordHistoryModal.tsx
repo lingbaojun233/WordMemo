@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { boxColors, colors, radius, spacing } from '../lib/theme';
 import { boxLabel, isDue, isNew } from '../lib/srs';
-import { ReviewResult, Word } from '../lib/types';
+import { Word } from '../lib/types';
 import { formatDateTime } from '../lib/utils';
 import { Button } from './ui';
 
@@ -16,10 +16,6 @@ function nextReviewText(w: Word): string {
   if (isNew(w)) return '新词，尚未开始学习';
   if (isDue(w)) return '已到期，可复习';
   return formatDateTime(w.dueAt);
-}
-
-function resultLabel(result: ReviewResult): string {
-  return result === 'good' ? '✓ 答对' : '✗ 答错';
 }
 
 /** 单词学习历史/进度弹窗（点击单词卡查看），含逐次复习时间线 */
@@ -93,6 +89,7 @@ export function WordHistoryModal({
 
                 {/* 每一次复习/测试 */}
                 {history.map((r, i) => {
+                  const good = r.result === 'good';
                   const isLast = i === history.length - 1;
                   return (
                     <View key={`${r.at}-${i}`} style={styles.timelineRow}>
@@ -108,7 +105,14 @@ export function WordHistoryModal({
                       <View style={styles.timelineBody}>
                         <Text style={styles.timelineTime}>{formatDateTime(r.at)}</Text>
                         <Text style={styles.timelineResult}>
-                          {resultLabel(r.result)} → {boxLabel(r.box)}
+                          <Text
+                            style={[styles.timelineMark, { color: good ? colors.success : colors.danger }]}
+                          >
+                            {good ? '✓' : '✗'}
+                          </Text>
+                          {good ? ' 答对' : ' 答错'}
+                          {' → '}
+                          {boxLabel(r.box)}
                         </Text>
                       </View>
                     </View>
@@ -198,6 +202,7 @@ const styles = StyleSheet.create({
   timelineTime: { fontSize: 12, color: colors.textLight },
   timelineJoin: { fontSize: 14, color: colors.textMuted, marginTop: 2 },
   timelineResult: { fontSize: 14, fontWeight: '600', marginTop: 2, color: colors.text },
+  timelineMark: { fontWeight: '800' },
   emptyHistory: { fontSize: 13, color: colors.textLight, paddingBottom: spacing.md },
   infoRow: {
     flexDirection: 'row',
