@@ -7,6 +7,7 @@ import { loadStudySettings, saveStudySettings, StudyMode, StudySettings } from '
 import { colors, radius, spacing } from '../../lib/theme';
 import { PickMode } from '../../lib/types';
 import { isDue, isNew } from '../../lib/srs';
+import { startOfToday } from '../../lib/utils';
 import { Button } from '../../components/ui';
 
 const MODES: {
@@ -49,6 +50,24 @@ export default function StudyTab() {
     return selectedBook.words.filter((w) => !isNew(w) && isDue(w)).length;
   }, [selectedBook]);
 
+  // 今日进度概览（跨词本按词形去重）：今日已学习 / 需要复习
+  const { learnedToday, dueAllCount } = useMemo(() => {
+    const start = startOfToday();
+    const seen = new Set<string>();
+    let learned = 0;
+    let due = 0;
+    for (const b of wordbooks) {
+      for (const w of b.words) {
+        const key = w.term.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (w.lastReviewedAt && w.lastReviewedAt >= start) learned++;
+        if (!isNew(w) && isDue(w)) due++;
+      }
+    }
+    return { learnedToday: learned, dueAllCount: due };
+  }, [wordbooks]);
+
   if (!settings) return <View style={styles.container} />;
 
   const mode = settings.studyMode ?? 'memorize_quiz';
@@ -69,6 +88,18 @@ export default function StudyTab() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* 今日进度 */}
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{learnedToday}</Text>
+          <Text style={styles.statLabel}>今日已学习</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{dueAllCount}</Text>
+          <Text style={styles.statLabel}>需要复习</Text>
+        </View>
+      </View>
+
       {/* 学习方式 */}
       <Text style={styles.sectionTitle}>学习方式</Text>
       <View style={styles.card}>
@@ -248,6 +279,18 @@ function Stepper({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, paddingBottom: 40 },
+  statsRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.sm },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+  },
+  statValue: { fontSize: 28, fontWeight: '800', color: colors.primary },
+  statLabel: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',

@@ -24,6 +24,13 @@ export function formatRelative(timestamp: number, now = Date.now()): string {
   return diff >= 0 ? `${d} 天后` : `${d} 天前`;
 }
 
+/** 今日零点的时间戳（本地时区） */
+export function startOfToday(): number {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 export function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
