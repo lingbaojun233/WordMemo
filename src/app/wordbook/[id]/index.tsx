@@ -15,7 +15,7 @@ import { boxLabel, isMastered, isNew } from '../../../lib/srs';
 import { Word } from '../../../lib/types';
 import { EmptyState } from '../../../components/ui';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
-import { WordDraft, WordEditorModal } from '../../../components/WordEditorModal';
+import { WordHistoryModal } from '../../../components/WordHistoryModal';
 
 type StageKey = 'all' | 'new' | 'learning' | 'mastered';
 
@@ -34,13 +34,12 @@ function stageOf(w: Word): Exclude<StageKey, 'all'> {
 
 export default function WordbookDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { wordbooks, updateWord, deleteWord } = useApp();
+  const { wordbooks, deleteWord } = useApp();
   const book = wordbooks.find((b) => b.id === id);
 
   const [query, setQuery] = useState('');
   const [stage, setStage] = useState<StageKey>('all');
-  const [showEditor, setShowEditor] = useState(false);
-  const [editingWord, setEditingWord] = useState<Word | null>(null);
+  const [historyWord, setHistoryWord] = useState<Word | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Word | null>(null);
 
   const words = useMemo(() => {
@@ -63,18 +62,6 @@ export default function WordbookDetailScreen() {
     );
   }
 
-  const openEdit = (w: Word) => {
-    setEditingWord(w);
-    setShowEditor(true);
-  };
-
-  const handleSubmit = (draft: WordDraft) => {
-    if (editingWord) {
-      updateWord(book.id, editingWord.id, draft);
-    }
-    setShowEditor(false);
-  };
-
   const confirmDelete = () => {
     if (deleteTarget) {
       deleteWord(book.id, deleteTarget.id);
@@ -85,7 +72,7 @@ export default function WordbookDetailScreen() {
   const renderWord = ({ item }: { item: Word }) => (
     <Pressable
       style={({ pressed }) => [styles.wordRow, pressed && { backgroundColor: colors.primaryLight }]}
-      onPress={() => openEdit(item)}
+      onPress={() => setHistoryWord(item)}
       onLongPress={() => setDeleteTarget(item)}
     >
       <View style={[styles.boxBadge, { backgroundColor: `${boxColors[item.box] ?? colors.textLight}22` }]}>
@@ -113,7 +100,7 @@ export default function WordbookDetailScreen() {
           </Text>
         ) : null}
       </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.textLight} />
+      <Ionicons name="time-outline" size={18} color={colors.textLight} />
     </Pressable>
   );
 
@@ -162,11 +149,10 @@ export default function WordbookDetailScreen() {
         />
       )}
 
-      <WordEditorModal
-        visible={showEditor}
-        word={editingWord}
-        onClose={() => setShowEditor(false)}
-        onSubmit={handleSubmit}
+      <WordHistoryModal
+        visible={historyWord !== null}
+        word={historyWord}
+        onClose={() => setHistoryWord(null)}
       />
 
       <ConfirmDialog
