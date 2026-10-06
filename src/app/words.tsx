@@ -55,6 +55,22 @@ export default function AllWordsScreen() {
     return map;
   }, [wordbooks]);
 
+  // 用户已添加词本中的单词级别：词形 -> 词本级别（取最高级别，避免显示成更低级别的词典级）
+  const userLevelMap = useMemo(() => {
+    const map = new Map<string, LevelKey>();
+    for (const b of wordbooks) {
+      for (const w of b.words) {
+        if (!w.level) continue;
+        const key = w.term.toLowerCase();
+        const existing = map.get(key);
+        if (!existing || LEVEL_ORDER.indexOf(w.level) > LEVEL_ORDER.indexOf(existing)) {
+          map.set(key, w.level);
+        }
+      }
+    }
+    return map;
+  }, [wordbooks]);
+
   // 全部内置词汇（去重，按最低级别；合并派生词）
   const entries = useMemo<Entry[]>(() => {
     const map = new Map<
@@ -98,7 +114,8 @@ export default function AllWordsScreen() {
       const inBooks = progressMap.has(e.term.toLowerCase());
       if (inBook === 'in' && !inBooks) return false;
       if (inBook === 'out' && inBooks) return false;
-      if (level !== 'all' && e.level !== level) return false;
+      const effLevel = userLevelMap.get(e.term.toLowerCase()) ?? e.level;
+      if (level !== 'all' && effLevel !== level) return false;
       if (q) {
         // 搜索同时匹配基本词与派生词的单词和释义
         const hitBase =
@@ -110,7 +127,7 @@ export default function AllWordsScreen() {
       }
       return true;
     });
-  }, [entries, inBook, level, query, progressMap]);
+  }, [entries, inBook, level, query, progressMap, userLevelMap]);
 
   // 派生「是否展开」：手动展开，或搜索命中派生词时自动展开
   const isExpanded = (e: Entry): boolean => {
@@ -142,7 +159,7 @@ export default function AllWordsScreen() {
         <WordRow
           term={item.term}
           meaning={item.meaning}
-          level={item.level}
+          level={userLevelMap.get(item.term.toLowerCase()) ?? item.level}
           box={boxOf(item.term)}
           hasDerivatives={hasDerivatives}
           expanded={isOpen}
@@ -155,7 +172,7 @@ export default function AllWordsScreen() {
                 key={d.term}
                 term={d.term}
                 meaning={d.meaning}
-                level={item.level}
+                level={userLevelMap.get(d.term.toLowerCase()) ?? item.level}
                 box={boxOf(d.term)}
                 isDerivative
               />
