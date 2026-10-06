@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
 import { buildQuiz, QuizQuestion } from '../../../lib/quiz';
-import { generatePassage, GeneratedPassage, parsePassage, PassageSegment } from '../../../lib/ai';
+import { generatePassage, GeneratedPassage, getAiConfig, parsePassage, PassageSegment } from '../../../lib/ai';
 import { pickDailyWords } from '../../../lib/srs';
 import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
 import { colors, radius, spacing } from '../../../lib/theme';
@@ -68,8 +68,9 @@ export default function ReadingScreen() {
 
   const start = async () => {
     if (!settings) return;
-    if (!settings.aiApiKey) {
-      setError('请先在「学习设置」中填写 AI API Key');
+    const config = getAiConfig(settings);
+    if (config.provider === 'online' && !config.apiKey) {
+      setError('请先在「学习设置」中填写联网模型 API Key');
       return;
     }
     const words = pickDailyWords(book.words, settings.dailyWords, settings.pickMode);
@@ -88,9 +89,7 @@ export default function ReadingScreen() {
       setGenProgress(i);
       try {
         const p = await generatePassage({
-          apiKey: settings.aiApiKey,
-          baseUrl: settings.aiBaseUrl,
-          model: settings.aiModel,
+          config,
           targetWords: chunks[i].map((w) => ({ term: w.term, meaning: w.meaning })),
           readerLevel: level,
         });

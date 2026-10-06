@@ -1,8 +1,41 @@
+import { AiProvider, StudySettings } from './studySettings';
+
 export type GeneratedPassage = {
   title: string;
   passage: string; // 目标单词用 [[word]] 包裹
   glossary: { word: string; meaning: string }[];
 };
+
+/** 一次 AI 调用所需的连接配置（联网或本地，统一 OpenAI 兼容协议） */
+export type AiConfig = {
+  provider: AiProvider;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+};
+
+/** 根据学习设置解析当前生效的 AI 配置 */
+export function getAiConfig(
+  s: Pick<
+    StudySettings,
+    'aiProvider' | 'aiApiKey' | 'aiBaseUrl' | 'aiModel' | 'localBaseUrl' | 'localModel'
+  >
+): AiConfig {
+  if (s.aiProvider === 'local') {
+    return {
+      provider: 'local',
+      baseUrl: s.localBaseUrl,
+      model: s.localModel,
+      apiKey: '',
+    };
+  }
+  return {
+    provider: 'online',
+    baseUrl: s.aiBaseUrl,
+    model: s.aiModel,
+    apiKey: s.aiApiKey,
+  };
+}
 
 export type PassageSegment = {
   text: string;
@@ -65,15 +98,51 @@ const LEVEL_DESC: Record<string, string> = {
   gre: 'GRE 及以下',
 };
 
+/** 统一走 OpenAI 兼容 /chat/completions；apiKey 为空（本地模型）时不带鉴权头 */
+async function chatCompletion(
+  config: AiConfig,
+  prompt: string,
+  opts?: { temperature?: number; maxTokens?: number }
+): Promise<string> {
+  const url = `${config.baseUrl.replace(/\/$/, '')}/chat/completions`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: config.model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: opts?.temperature ?? 0.8,
+        ...(opts?.maxTokens ? { max_tokens: opts.maxTokens } : {}),
+      }),
+    });
+  } catch (e) {
+    throw new Error(`网络请求失败：${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`AI 请求失败 (${response.status})：${text.slice(0, 200)}`);
+  }
+
+  const data = (await response.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const content = data.choices?.[0]?.message?.content ?? '';
+  if (!content) throw new Error('AI 返回内容为空');
+  return content;
+}
+
 export async function generatePassage(params: {
-  apiKey: string;
-  baseUrl: string;
-  model: string;
+  config: AiConfig;
   targetWords: { term: string; meaning: string }[];
   readerLevel: string; // LevelKey
 }): Promise<GeneratedPassage> {
-  const { apiKey, baseUrl, model, targetWords, readerLevel } = params;
-  if (!apiKey) throw new Error('请先在「设置」中填写 AI API Key');
+  const { config, targetWords, readerLevel } = params;
 
   const wordList = targetWords
     .map((w) => `${w.term}（${w.meaning}）`)
@@ -96,35 +165,7 @@ ${wordList}
 【输出格式】只输出一个 JSON 对象，不要输出任何其他文字：
 {"title":"文章标题","passage":"文章正文（目标单词用 [[ ]] 包裹）","glossary":[{"word":"目标单词","meaning":"中文释义"}]}`;
 
-  const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.8,
-      }),
-    });
-  } catch (e) {
-    throw new Error(`网络请求失败：${e instanceof Error ? e.message : String(e)}`);
-  }
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`AI 请求失败 (${response.status})：${text.slice(0, 200)}`);
-  }
-
-  const data = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = data.choices?.[0]?.message?.content ?? '';
-  if (!content) throw new Error('AI 返回内容为空');
+  const content = await chatCompletion(config, prompt, { temperature: 0.8 });
 
   const parsed = extractJson(content) as Partial<GeneratedPassage>;
   if (!parsed.passage || typeof parsed.passage !== 'string') {
@@ -146,4 +187,13 @@ ${wordList}
       meaning,
     })),
   };
+}
+
+/** 测试 AI 连接是否可用，返回模型回复的一句话 */
+export async function testAiConnection(config: AiConfig): Promise<string> {
+  const content = await chatCompletion(config, '请只回复两个字：正常', {
+    temperature: 0,
+    maxTokens: 16,
+  });
+  return content.trim();
 }

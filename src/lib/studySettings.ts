@@ -5,10 +5,16 @@ import { PickMode } from './types';
 // 学习模式
 export type StudyMode = 'memorize_quiz' | 'ai_reading' | 'ai_questions';
 
+// AI 服务来源：联网模型（DeepSeek/OpenAI 兼容）或本地模型（Ollama 等 OpenAI 兼容服务）
+export type AiProvider = 'online' | 'local';
+
 export type StudySettings = {
-  aiApiKey: string;
-  aiBaseUrl: string;
-  aiModel: string;
+  aiProvider: AiProvider; // 当前使用的 AI 来源
+  aiApiKey: string; // 联网模型 API Key
+  aiBaseUrl: string; // 联网模型接口地址
+  aiModel: string; // 联网模型名
+  localBaseUrl: string; // 本地模型接口地址（OpenAI 兼容，如 Ollama 的 /v1）
+  localModel: string; // 本地模型名
   dailyPassages: number; // 一天读几篇短文
   dailyWords: number; // 一天背多少单词
   pickMode: PickMode; // 单词选取方式：按顺序 / 随机
@@ -21,9 +27,12 @@ export type StudySettings = {
 const KEY = 'wordmemo:studySettings:v1';
 
 export const DEFAULT_SETTINGS: StudySettings = {
+  aiProvider: 'online',
   aiApiKey: '',
   aiBaseUrl: 'https://api.deepseek.com',
   aiModel: 'deepseek-chat',
+  localBaseUrl: 'http://localhost:11434/v1',
+  localModel: 'qwen2.5:1.5b',
   dailyPassages: 2,
   dailyWords: 20,
   pickMode: 'sequential',
