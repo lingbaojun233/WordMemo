@@ -57,6 +57,7 @@ export function applyReview(word: Word, result: ReviewResult, now = Date.now()):
     correctCount: word.correctCount + (result === 'good' ? 1 : 0),
     wrongCount: word.wrongCount + (result !== 'good' ? 1 : 0),
     lastReviewedAt: now,
+    history: [...(word.history ?? []), { at: now, result, box }],
   };
 }
 

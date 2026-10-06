@@ -7,7 +7,7 @@ import React, {
   useReducer,
   useRef,
 } from 'react';
-import { Word, Wordbook, ReviewResult } from '../lib/types';
+import { Word, Wordbook, ReviewResult, ReviewRecord } from '../lib/types';
 import { applyReview } from '../lib/srs';
 import { loadWordbooks, saveWordbooks } from '../lib/storage';
 import { uid } from '../lib/utils';
@@ -65,7 +65,7 @@ type Action =
 
 type ProgressState = Pick<
   Word,
-  'box' | 'dueAt' | 'correctCount' | 'wrongCount' | 'lastReviewedAt'
+  'box' | 'dueAt' | 'correctCount' | 'wrongCount' | 'lastReviewedAt' | 'history'
 >;
 
 function buildWord(partial: {
@@ -87,6 +87,7 @@ function buildWord(partial: {
     correctCount: partial.progress?.correctCount ?? 0,
     wrongCount: partial.progress?.wrongCount ?? 0,
     lastReviewedAt: partial.progress?.lastReviewedAt,
+    history: partial.progress?.history ?? [],
     createdAt: partial.createdAt ?? Date.now(),
   };
 }
@@ -103,6 +104,7 @@ function progressFor(books: Wordbook[], term: string): ProgressState | null {
           correctCount: w.correctCount,
           wrongCount: w.wrongCount,
           lastReviewedAt: w.lastReviewedAt,
+          history: w.history,
         };
       }
     }
@@ -110,28 +112,47 @@ function progressFor(books: Wordbook[], term: string): ProgressState | null {
   return null;
 }
 
-// 启动时按词形对齐历史进度：同一单词在所有词库中取“最佳进度”并统一
+// 合并同一单词的多条历史记录（按时间戳去重 + 升序）
+function mergeHistory(a?: ReviewRecord[], b?: ReviewRecord[]): ReviewRecord[] {
+  const map = new Map<number, ReviewRecord>();
+  for (const r of [...(a ?? []), ...(b ?? [])]) {
+    map.set(r.at, r);
+  }
+  return Array.from(map.values()).sort((x, y) => x.at - y.at);
+}
+
+// 启动时按词形对齐历史进度：同一单词在所有词库中取“最佳进度”并统一，历史记录合并去重
 function reconcileProgress(books: Wordbook[]): Wordbook[] {
-  const best = new Map<string, ProgressState>();
+  const agg = new Map<string, ProgressState>();
   for (const b of books) {
     for (const w of b.words) {
       const t = w.term.toLowerCase();
-      const cur = best.get(t);
-      if (!cur || w.box > cur.box || (w.box === cur.box && w.correctCount > cur.correctCount)) {
-        best.set(t, {
-          box: w.box,
-          dueAt: w.dueAt,
-          correctCount: w.correctCount,
-          wrongCount: w.wrongCount,
-          lastReviewedAt: w.lastReviewedAt,
-        });
+      const prev = agg.get(t);
+      const history = mergeHistory(prev?.history, w.history);
+
+      let box = w.box;
+      let dueAt = w.dueAt;
+      let correctCount = w.correctCount;
+      let wrongCount = w.wrongCount;
+      let lastReviewedAt = w.lastReviewedAt;
+      if (prev) {
+        const better =
+          w.box > prev.box || (w.box === prev.box && w.correctCount > prev.correctCount);
+        if (!better) {
+          box = prev.box;
+          dueAt = prev.dueAt;
+          correctCount = prev.correctCount;
+          wrongCount = prev.wrongCount;
+          lastReviewedAt = prev.lastReviewedAt;
+        }
       }
+      agg.set(t, { box, dueAt, correctCount, wrongCount, lastReviewedAt, history });
     }
   }
   return books.map((b) => ({
     ...b,
     words: b.words.map((w) => {
-      const p = best.get(w.term.toLowerCase());
+      const p = agg.get(w.term.toLowerCase());
       return p ? { ...w, ...p } : w;
     }),
   }));
@@ -268,6 +289,7 @@ function reducer(state: State, action: Action): State {
               correctCount: updated.correctCount,
               wrongCount: updated.wrongCount,
               lastReviewedAt: updated.lastReviewedAt,
+              history: updated.history,
             };
             break outer;
           }
@@ -304,6 +326,7 @@ function reducer(state: State, action: Action): State {
                   correctCount: 0,
                   wrongCount: 0,
                   lastReviewedAt: undefined,
+                  history: [],
                 }
               : w
           ),
@@ -502,6 +525,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         correctCount: progress?.correctCount ?? 0,
         wrongCount: progress?.wrongCount ?? 0,
         lastReviewedAt: progress?.lastReviewedAt,
+        history: progress?.history ?? [],
         createdAt: now,
       };
     });

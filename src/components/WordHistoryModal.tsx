@@ -1,9 +1,9 @@
 import React from 'react';
-import { Modal, StyleSheet, Text, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { boxColors, colors, radius, spacing } from '../lib/theme';
 import { boxLabel, isDue, isNew } from '../lib/srs';
-import { Word } from '../lib/types';
-import { formatDate, formatRelative } from '../lib/utils';
+import { ReviewResult, Word } from '../lib/types';
+import { formatDateTime } from '../lib/utils';
 import { Button } from './ui';
 
 function accuracy(w: Word): string {
@@ -15,19 +15,14 @@ function accuracy(w: Word): string {
 function nextReviewText(w: Word): string {
   if (isNew(w)) return '新词，尚未开始学习';
   if (isDue(w)) return '已到期，可复习';
-  return formatRelative(w.dueAt);
+  return formatDateTime(w.dueAt);
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
-    </View>
-  );
+function resultLabel(result: ReviewResult): string {
+  return result === 'good' ? '✓ 答对' : '✗ 答错';
 }
 
-/** 单词学习历史/进度弹窗（点击单词卡查看） */
+/** 单词学习历史/进度弹窗（点击单词卡查看），含逐次复习时间线 */
 export function WordHistoryModal({
   visible,
   word,
@@ -37,6 +32,8 @@ export function WordHistoryModal({
   word: Word | null;
   onClose: () => void;
 }) {
+  const history = word ? [...(word.history ?? [])].sort((a, b) => a.at - b.at) : [];
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -80,19 +77,58 @@ export function WordHistoryModal({
                 </View>
               </View>
 
-              <View style={styles.infoList}>
-                <InfoRow label="当前等级" value={boxLabel(word.box)} />
-                <InfoRow
-                  label="最近复习"
-                  value={word.lastReviewedAt ? formatRelative(word.lastReviewedAt) : '尚未复习'}
-                />
-                <InfoRow label="下次复习" value={nextReviewText(word)} />
-                <InfoRow label="加入时间" value={formatDate(word.createdAt)} />
+              <Text style={styles.timelineTitle}>学习历程</Text>
+              <ScrollView style={styles.timelineScroll} showsVerticalScrollIndicator>
+                {/* 起点：加入单词本 */}
+                <View style={styles.timelineRow}>
+                  <View style={styles.rail}>
+                    <View style={[styles.dot, { backgroundColor: colors.textLight }]} />
+                    {history.length > 0 ? <View style={styles.railLine} /> : null}
+                  </View>
+                  <View style={styles.timelineBody}>
+                    <Text style={styles.timelineTime}>{formatDateTime(word.createdAt)}</Text>
+                    <Text style={styles.timelineJoin}>加入单词本</Text>
+                  </View>
+                </View>
+
+                {/* 每一次复习/测试 */}
+                {history.map((r, i) => {
+                  const good = r.result === 'good';
+                  const isLast = i === history.length - 1;
+                  return (
+                    <View key={`${r.at}-${i}`} style={styles.timelineRow}>
+                      <View style={styles.rail}>
+                        <View
+                          style={[
+                            styles.dot,
+                            { backgroundColor: good ? colors.success : colors.danger },
+                          ]}
+                        />
+                        {!isLast ? <View style={styles.railLine} /> : null}
+                      </View>
+                      <View style={styles.timelineBody}>
+                        <Text style={styles.timelineTime}>{formatDateTime(r.at)}</Text>
+                        <Text style={[styles.timelineResult, { color: good ? colors.success : colors.danger }]}>
+                          {resultLabel(r.result)} → {boxLabel(r.box)}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+
+                {history.length === 0 ? (
+                  <Text style={styles.emptyHistory}>暂无学习记录</Text>
+                ) : null}
+              </ScrollView>
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>下次复习</Text>
+                <Text style={styles.infoValue}>{nextReviewText(word)}</Text>
               </View>
+
+              <Button label="关闭" variant="outline" onPress={onClose} style={{ marginTop: spacing.md }} />
             </>
           ) : null}
-
-          <Button label="关闭" variant="outline" onPress={onClose} style={{ marginTop: spacing.md }} />
         </View>
       </View>
     </Modal>
@@ -110,6 +146,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.lg,
+    maxHeight: '88%',
   },
   sectionLabel: { fontSize: 12, fontWeight: '700', color: colors.textLight, marginBottom: spacing.sm },
   head: {
@@ -146,17 +183,30 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 22, fontWeight: '800' },
   statLabel: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  infoList: {
+  timelineTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textMuted,
     marginTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
+  timelineScroll: { flexShrink: 1 },
+  timelineRow: { flexDirection: 'row' },
+  rail: { width: 20, alignItems: 'center' },
+  dot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
+  railLine: { flex: 1, width: 2, backgroundColor: colors.border, marginVertical: 2 },
+  timelineBody: { flex: 1, paddingLeft: spacing.sm, paddingBottom: spacing.md },
+  timelineTime: { fontSize: 12, color: colors.textLight },
+  timelineJoin: { fontSize: 14, color: colors.textMuted, marginTop: 2 },
+  timelineResult: { fontSize: 14, fontWeight: '600', marginTop: 2 },
+  emptyHistory: { fontSize: 13, color: colors.textLight, paddingBottom: spacing.md },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.sm,
   },
   infoLabel: { fontSize: 14, color: colors.textMuted },
   infoValue: { fontSize: 14, fontWeight: '600', color: colors.text },

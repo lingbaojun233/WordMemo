@@ -13,6 +13,7 @@ export type Word = {
   correctCount: number; // 累计答对次数
   wrongCount: number; // 累计答错次数
   lastReviewedAt?: number;
+  history?: ReviewRecord[]; // 每次复习/测试记录（时间 + 结果 + 之后等级）
   createdAt: number;
 };
 
@@ -26,5 +27,11 @@ export type Wordbook = {
 };
 
 export type ReviewResult = 'again' | 'hard' | 'good';
+
+export type ReviewRecord = {
+  at: number; // 复习时间戳
+  result: ReviewResult; // 本次结果
+  box: number; // 本次复习后的记忆盒等级
+};
 
 export type PickMode = 'sequential' | 'random';
