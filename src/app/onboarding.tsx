@@ -31,7 +31,7 @@ const MODES: {
   {
     key: 'ai_questions',
     icon: 'create',
-    title: 'AI 出题，学习后完成',
+    title: 'AI 出题，学习后答题',
     desc: '敬请期待，后续版本推出',
     enabled: false,
   },

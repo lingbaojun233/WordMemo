@@ -102,7 +102,7 @@ export default function StudyScreen() {
   if (phase === 'intro') {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: '背诵（选释义）' }} />
+        <Stack.Screen options={{ title: '先背诵后测验' }} />
         <View style={styles.center}>
           <View style={styles.heroIcon}>
             <Ionicons name="albums" size={40} color={colors.primary} />
@@ -135,7 +135,7 @@ export default function StudyScreen() {
     const acc = total > 0 ? Math.round((correctCount / total) * 100) : 0;
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: '背诵（选释义）' }} />
+        <Stack.Screen options={{ title: '先背诵后测验' }} />
         <View style={styles.center}>
           <View style={[styles.heroIcon, { backgroundColor: '#D1FAE5' }]}>
             <Ionicons name="checkmark-done" size={40} color={colors.success} />
@@ -171,7 +171,7 @@ export default function StudyScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: '背诵（选释义）' }} />
+      <Stack.Screen options={{ title: '先背诵后测验' }} />
 
       <View style={styles.progressWrap}>
         <View style={styles.progressTrack}>

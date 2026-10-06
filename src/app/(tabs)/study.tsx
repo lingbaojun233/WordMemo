@@ -15,7 +15,7 @@ const MODES: {
 }[] = [
   { key: 'memorize_quiz', icon: 'albums', title: '先背诵后测验', enabled: true },
   { key: 'ai_reading', icon: 'newspaper', title: 'AI 写短文，阅读后测验', enabled: true },
-  { key: 'ai_questions', icon: 'create', title: 'AI 出题，学习后完成', enabled: false },
+  { key: 'ai_questions', icon: 'create', title: 'AI 出题，学习后答题', enabled: false },
 ];
 
 export default function StudyTab() {
@@ -38,10 +38,12 @@ export default function StudyTab() {
 
   const mode = settings.studyMode ?? 'memorize_quiz';
   const selectedBook = wordbooks.find((b) => b.id === selectedBookId) ?? null;
-  const wordsPerPassage =
+  // 每篇目标生词数 = 今日单词数 / 篇数；预估每篇文章总词数 ≈ 目标生词数 × 10
+  const targetPerPassage =
     settings.dailyPassages > 0
-      ? Math.round(settings.dailyWords / settings.dailyPassages)
-      : 0;
+      ? Math.max(1, Math.round(settings.dailyWords / settings.dailyPassages))
+      : settings.dailyWords;
+  const estimatedArticleWords = targetPerPassage * 10;
 
   const start = () => {
     if (!selectedBook) return;
@@ -111,7 +113,7 @@ export default function StudyTab() {
               max={10}
               onChange={(v) => update({ dailyPassages: v })}
             />
-            <Text style={styles.helper}>每篇约 {wordsPerPassage} 词</Text>
+            <Text style={styles.helper}>每篇约 {estimatedArticleWords} 词（预估）</Text>
           </>
         ) : null}
       </View>

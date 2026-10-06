@@ -95,6 +95,7 @@ export default function ReadingScreen() {
   const wordsPerPassage = settings
     ? Math.max(1, Math.ceil(settings.dailyWords / settings.dailyPassages))
     : 10;
+  const estimatedArticleWords = wordsPerPassage * 10;
 
   const start = async () => {
     if (!settings) return;
@@ -168,12 +169,12 @@ export default function ReadingScreen() {
   if (phase === 'intro') {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: 'AI 短文阅读', headerBackTitle: '返回' }} />
+        <Stack.Screen options={{ title: 'AI 写短文，阅读后测验', headerBackTitle: '返回' }} />
         <View style={styles.center}>
           <View style={styles.heroIcon}>
             <Ionicons name="newspaper-outline" size={40} color={colors.primary} />
           </View>
-          <Text style={styles.title}>AI 短文阅读</Text>
+          <Text style={styles.title}>AI 写短文，阅读后测验</Text>
           <Text style={styles.desc}>
             根据你要背的单词生成主题短文，在阅读中记忆单词，读完后再做测试
           </Text>
@@ -181,7 +182,7 @@ export default function ReadingScreen() {
           <View style={styles.summaryCard}>
             <SummaryRow label="每天阅读" value={`${settings?.dailyPassages ?? 2} 篇`} />
             <SummaryRow label="每天背诵" value={`${settings?.dailyWords ?? 20} 词`} />
-            <SummaryRow label="每篇含" value={`约 ${wordsPerPassage} 个生词`} />
+            <SummaryRow label="每篇长度" value={`约 ${estimatedArticleWords} 词（预估）`} />
             <SummaryRow label="我的水平" value={levelLabel} />
             <SummaryRow label="本次生词" value={`${Math.min(settings?.dailyWords ?? 20, book.words.length)} 个`} />
           </View>
@@ -204,7 +205,7 @@ export default function ReadingScreen() {
   if (phase === 'generating') {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: 'AI 短文阅读', headerBackTitle: '返回' }} />
+        <Stack.Screen options={{ title: 'AI 写短文，阅读后测验', headerBackTitle: '返回' }} />
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.generatingText}>

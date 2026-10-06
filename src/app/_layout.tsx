@@ -73,8 +73,8 @@ function RootNavigator() {
             <Stack.Screen name="words" options={{ title: '全部单词' }} />
             <Stack.Screen name="settings" options={{ title: '学习设置' }} />
             <Stack.Screen name="wordbook/[id]/index" options={{ title: '单词本' }} />
-            <Stack.Screen name="wordbook/[id]/reading" options={{ title: 'AI 短文阅读' }} />
-            <Stack.Screen name="wordbook/[id]/study" options={{ title: '背诵' }} />
+            <Stack.Screen name="wordbook/[id]/reading" options={{ title: 'AI 写短文，阅读后测验' }} />
+            <Stack.Screen name="wordbook/[id]/study" options={{ title: '先背诵后测验' }} />
           </Stack.Protected>
 
           {/* 词汇水平测验：引导与设置中都可使用 */}
