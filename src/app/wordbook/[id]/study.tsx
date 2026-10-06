@@ -22,6 +22,7 @@ export default function StudyScreen() {
 
   const [settings, setSettings] = useState<StudySettings | null>(null);
   const [phase, setPhase] = useState<Phase>('intro');
+  const [sessionWords, setSessionWords] = useState<Word[]>([]);
   const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
   const [groupIdx, setGroupIdx] = useState(0);
   const [subPhase, setSubPhase] = useState<SubPhase>('memorize');
@@ -56,14 +57,14 @@ export default function StudyScreen() {
     return ordered.slice(0, remaining);
   }, [book, settings, remaining]);
 
-  // 分组（每 5 个一组）
+  // 分组（每 5 个一组）——基于本次会话冻结的单词列表，避免答题后实时派生导致错位
   const groups = useMemo(() => {
     const g: Word[][] = [];
-    for (let i = 0; i < selected.length; i += GROUP_SIZE) {
-      g.push(selected.slice(i, i + GROUP_SIZE));
+    for (let i = 0; i < sessionWords.length; i += GROUP_SIZE) {
+      g.push(sessionWords.slice(i, i + GROUP_SIZE));
     }
     return g;
-  }, [selected]);
+  }, [sessionWords]);
 
   if (!book) {
     return (
@@ -78,6 +79,8 @@ export default function StudyScreen() {
   const currentQ = quiz[groupIdx * GROUP_SIZE + subIdx] ?? null;
 
   const start = () => {
+    // 冻结本次会话要学的单词与题目，避免答题过程中 book 变化导致 selected 重算而错位
+    setSessionWords(selected);
     setQuiz(buildQuiz(selected, book.words));
     setGroupIdx(0);
     setSubPhase('memorize');
@@ -136,7 +139,7 @@ export default function StudyScreen() {
             <>
               <Text style={styles.title}>今日还需学习 {remaining} 词</Text>
               <Text style={styles.subDesc}>
-                共 {groups.length} 组 · 每组 {GROUP_SIZE} 词 · 先背诵后测验
+                共 {Math.ceil(selected.length / GROUP_SIZE)} 组 · 每组 {GROUP_SIZE} 词 · 先背诵后测验
               </Text>
               <Text style={styles.desc}>
                 每次先背诵一组 {GROUP_SIZE} 个单词，再对它们进行测验。选对升一级，选错保持不变
