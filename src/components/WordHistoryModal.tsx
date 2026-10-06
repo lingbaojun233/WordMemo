@@ -93,7 +93,6 @@ export function WordHistoryModal({
 
                 {/* 每一次复习/测试 */}
                 {history.map((r, i) => {
-                  const good = r.result === 'good';
                   const isLast = i === history.length - 1;
                   return (
                     <View key={`${r.at}-${i}`} style={styles.timelineRow}>
@@ -101,14 +100,14 @@ export function WordHistoryModal({
                         <View
                           style={[
                             styles.dot,
-                            { backgroundColor: good ? colors.success : colors.danger },
+                            { backgroundColor: boxColors[r.box] ?? colors.textLight },
                           ]}
                         />
                         {!isLast ? <View style={styles.railLine} /> : null}
                       </View>
                       <View style={styles.timelineBody}>
                         <Text style={styles.timelineTime}>{formatDateTime(r.at)}</Text>
-                        <Text style={[styles.timelineResult, { color: good ? colors.success : colors.danger }]}>
+                        <Text style={styles.timelineResult}>
                           {resultLabel(r.result)} → {boxLabel(r.box)}
                         </Text>
                       </View>
@@ -198,7 +197,7 @@ const styles = StyleSheet.create({
   timelineBody: { flex: 1, paddingLeft: spacing.sm, paddingBottom: spacing.md },
   timelineTime: { fontSize: 12, color: colors.textLight },
   timelineJoin: { fontSize: 14, color: colors.textMuted, marginTop: 2 },
-  timelineResult: { fontSize: 14, fontWeight: '600', marginTop: 2 },
+  timelineResult: { fontSize: 14, fontWeight: '600', marginTop: 2, color: colors.text },
   emptyHistory: { fontSize: 13, color: colors.textLight, paddingBottom: spacing.md },
   infoRow: {
     flexDirection: 'row',
