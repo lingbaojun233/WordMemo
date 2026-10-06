@@ -5,7 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useApp } from '../../lib/AppContext';
 import { loadStudySettings, saveStudySettings, StudySettings } from '../../lib/studySettings';
 import { colors, radius, spacing } from '../../lib/theme';
-import { boxLabel, isDue, isNew } from '../../lib/srs';
+import { isDue, isNew } from '../../lib/srs';
 import { startOfToday } from '../../lib/utils';
 import { Button } from '../../components/ui';
 import { StudyStartModal } from '../../components/StudyStartModal';
@@ -32,21 +32,20 @@ export default function StudyTab() {
     ? (wordbooks.find((b) => b.id === settings.currentBookId) ?? wordbooks[0] ?? null)
     : null;
 
-  // 当前词本统计
+  // 当前词本统计（目标：所有新词完成初学，即达到 1-初识）
   const stats = useMemo(() => {
     if (!currentBook) return { totalToLearn: 0, learnedToday: 0, dueCount: 0 };
     const start = startOfToday();
-    const target = settings?.targetLevel ?? 7;
     let total = 0;
     let learned = 0;
     let due = 0;
     for (const w of currentBook.words) {
-      if (w.box < target) total++;
+      if (w.box === 0) total++; // 尚未完成初学的新词
       if (w.lastReviewedAt && w.lastReviewedAt >= start) learned++;
       if (!isNew(w) && isDue(w)) due++;
     }
     return { totalToLearn: total, learnedToday: learned, dueCount: due };
-  }, [currentBook, settings]);
+  }, [currentBook]);
 
   // 目标进度
   const goal = useMemo(() => {
@@ -145,7 +144,7 @@ export default function StudyTab() {
           <Text style={styles.goalTitle}>
             {goal.kind === 'daily'
               ? `今日目标 ${goal.done}/${goal.target} 词`
-              : `截止目标：${goal.days} 天内学完`}
+              : `截止目标：${goal.days} 天内完成初学`}
           </Text>
           {goal.kind === 'daily' ? (
             <>
@@ -212,7 +211,7 @@ export default function StudyTab() {
           />
         ) : (
           <Stepper
-            label="希望在几天内学完"
+            label="希望在几天内完成初学"
             value={settings.deadlineDays}
             min={7}
             max={365}
@@ -220,15 +219,9 @@ export default function StudyTab() {
             onChange={(v) => update({ deadlineDays: v })}
           />
         )}
-        <View style={styles.divider} />
-        <Stepper
-          label="目标学习程度"
-          value={settings.targetLevel}
-          min={1}
-          max={8}
-          onChange={(v) => update({ targetLevel: v })}
-          valueLabel={boxLabel(settings.targetLevel)}
-        />
+        <Text style={styles.goalNote}>
+          目标：把所有新词学到「1-初识」等级（完成首次学习），之后的复习提升等级由你自行安排
+        </Text>
       </View>
 
       {/* 开始学习 */}
@@ -393,7 +386,7 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 13, color: colors.textMuted },
   chipTextActive: { color: '#fff', fontWeight: '600' },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.sm },
+  goalNote: { fontSize: 12, color: colors.textMuted, marginTop: spacing.sm, lineHeight: 18 },
   stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   stepperLabel: { fontSize: 15, color: colors.text, fontWeight: '500' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

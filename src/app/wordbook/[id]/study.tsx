@@ -43,7 +43,7 @@ export default function StudyScreen() {
     if (settings.goalType === 'daily') {
       return Math.max(0, settings.dailyGoal - learnedToday);
     }
-    const active = book.words.filter((w) => w.box < settings.targetLevel).length;
+    const active = book.words.filter((w) => w.box === 0).length; // 尚未完成初学的新词
     const perDay = Math.ceil(active / Math.max(1, settings.deadlineDays));
     return Math.max(0, perDay - learnedToday);
   }, [book, settings]);

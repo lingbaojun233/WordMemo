@@ -28,8 +28,7 @@ export type StudySettings = {
   currentBookId: string | null; // 当前学习的单词本
   goalType: GoalType; // 学习目标类型
   dailyGoal: number; // 每日目标（每天新学单词数）
-  deadlineDays: number; // 截止目标（希望在 N 天内学完当前词本）
-  targetLevel: number; // 目标学习程度（学到几级，1-8）
+  deadlineDays: number; // 截止目标（希望在 N 天内完成初学）
 };
 
 const KEY = 'wordmemo:studySettings:v1';
@@ -53,7 +52,6 @@ export const DEFAULT_SETTINGS: StudySettings = {
   goalType: 'daily',
   dailyGoal: 20,
   deadlineDays: 30,
-  targetLevel: 7,
 };
 
 export async function loadStudySettings(): Promise<StudySettings> {
