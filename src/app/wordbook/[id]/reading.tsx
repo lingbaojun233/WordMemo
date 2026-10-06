@@ -92,11 +92,6 @@ export default function ReadingScreen() {
     ? LEVEL_SAMPLES.find((s) => s.level === settings.level)?.label ?? '未测验'
     : '未测验';
 
-  const wordsPerPassage = settings
-    ? Math.max(1, Math.ceil(settings.dailyWords / settings.dailyPassages))
-    : 10;
-  const estimatedArticleWords = wordsPerPassage * 10;
-
   const start = async () => {
     if (!settings) return;
     if (!settings.aiApiKey) {
@@ -182,7 +177,6 @@ export default function ReadingScreen() {
           <View style={styles.summaryCard}>
             <SummaryRow label="每天阅读" value={`${settings?.dailyPassages ?? 2} 篇`} />
             <SummaryRow label="每天背诵" value={`${settings?.dailyWords ?? 20} 词`} />
-            <SummaryRow label="每篇长度" value={`约 ${estimatedArticleWords} 词（预估）`} />
             <SummaryRow label="我的水平" value={levelLabel} />
             <SummaryRow label="本次生词" value={`${Math.min(settings?.dailyWords ?? 20, book.words.length)} 个`} />
           </View>

@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# 词库数据生成/后处理脚本（一次性工具，不入库）
+.tmp-vocab/

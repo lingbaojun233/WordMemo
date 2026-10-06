@@ -38,12 +38,6 @@ export default function StudyTab() {
 
   const mode = settings.studyMode ?? 'memorize_quiz';
   const selectedBook = wordbooks.find((b) => b.id === selectedBookId) ?? null;
-  // 每篇目标生词数 = 今日单词数 / 篇数；预估每篇文章总词数 ≈ 目标生词数 × 10
-  const targetPerPassage =
-    settings.dailyPassages > 0
-      ? Math.max(1, Math.round(settings.dailyWords / settings.dailyPassages))
-      : settings.dailyWords;
-  const estimatedArticleWords = targetPerPassage * 10;
 
   const start = () => {
     if (!selectedBook) return;
@@ -113,7 +107,6 @@ export default function StudyTab() {
               max={10}
               onChange={(v) => update({ dailyPassages: v })}
             />
-            <Text style={styles.helper}>每篇约 {estimatedArticleWords} 词（预估）</Text>
           </>
         ) : null}
       </View>
@@ -242,7 +235,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepValue: { fontSize: 17, fontWeight: '700', color: colors.text, minWidth: 32, textAlign: 'center' },
-  helper: { fontSize: 12, color: colors.textLight, marginTop: spacing.sm },
   emptyBook: {
     flexDirection: 'row',
     alignItems: 'center',
