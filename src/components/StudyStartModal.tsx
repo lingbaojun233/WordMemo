@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StudyMode, StudySettings } from '../lib/studySettings';
+import { boxLabel } from '../lib/srs';
 import { colors, radius, spacing } from '../lib/theme';
 import { PickMode } from '../lib/types';
 import { Button } from './ui';
@@ -96,6 +97,15 @@ export function StudyStartModal({
                   onChange={(v) => onChange({ deadlineDays: v })}
                 />
               )}
+              <View style={styles.divider} />
+              <Stepper
+                label="目标学习程度"
+                value={settings.targetLevel}
+                min={1}
+                max={8}
+                onChange={(v) => onChange({ targetLevel: v })}
+                valueLabel={boxLabel(settings.targetLevel)}
+              />
             </View>
 
             {/* 阅读篇数（仅 AI 阅读模式） */}
@@ -161,6 +171,7 @@ function Stepper({
   max,
   step = 1,
   onChange,
+  valueLabel,
 }: {
   label: string;
   value: number;
@@ -168,6 +179,7 @@ function Stepper({
   max: number;
   step?: number;
   onChange: (v: number) => void;
+  valueLabel?: string;
 }) {
   return (
     <View style={styles.stepperRow}>
@@ -180,7 +192,7 @@ function Stepper({
         >
           <Ionicons name="remove" size={18} color={colors.text} />
         </Pressable>
-        <Text style={styles.stepValue}>{value}</Text>
+        <Text style={styles.stepValue}>{valueLabel ?? value}</Text>
         <Pressable
           style={({ pressed }) => [styles.stepBtn, pressed && { opacity: 0.6 }]}
           onPress={() => onChange(Math.min(max, value + step))}

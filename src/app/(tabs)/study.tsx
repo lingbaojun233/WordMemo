@@ -5,7 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useApp } from '../../lib/AppContext';
 import { loadStudySettings, saveStudySettings, StudySettings } from '../../lib/studySettings';
 import { colors, radius, spacing } from '../../lib/theme';
-import { isDue, isGraduated, isNew } from '../../lib/srs';
+import { isDue, isNew } from '../../lib/srs';
 import { startOfToday } from '../../lib/utils';
 import { Button } from '../../components/ui';
 import { StudyStartModal } from '../../components/StudyStartModal';
@@ -36,16 +36,17 @@ export default function StudyTab() {
   const stats = useMemo(() => {
     if (!currentBook) return { totalToLearn: 0, learnedToday: 0, dueCount: 0 };
     const start = startOfToday();
+    const target = settings?.targetLevel ?? 7;
     let total = 0;
     let learned = 0;
     let due = 0;
     for (const w of currentBook.words) {
-      if (!isGraduated(w)) total++;
+      if (w.box < target) total++;
       if (w.lastReviewedAt && w.lastReviewedAt >= start) learned++;
       if (!isNew(w) && isDue(w)) due++;
     }
     return { totalToLearn: total, learnedToday: learned, dueCount: due };
-  }, [currentBook]);
+  }, [currentBook, settings]);
 
   // 目标进度
   const goal = useMemo(() => {

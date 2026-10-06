@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
 import { buildQuiz, QuizQuestion } from '../../../lib/quiz';
-import { isGraduated } from '../../../lib/srs';
 import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
 import { colors, radius, spacing } from '../../../lib/theme';
 import { Word } from '../../../lib/types';
@@ -44,7 +43,7 @@ export default function StudyScreen() {
     if (settings.goalType === 'daily') {
       return Math.max(0, settings.dailyGoal - learnedToday);
     }
-    const active = book.words.filter((w) => !isGraduated(w)).length;
+    const active = book.words.filter((w) => w.box < settings.targetLevel).length;
     const perDay = Math.ceil(active / Math.max(1, settings.deadlineDays));
     return Math.max(0, perDay - learnedToday);
   }, [book, settings]);
