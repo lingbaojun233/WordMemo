@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   FlatList,
@@ -15,7 +15,7 @@ import { LEVEL_SAMPLES, LevelKey } from '../../../data/levelTestWords';
 import { boxColors, colors, radius, spacing } from '../../../lib/theme';
 import { boxLabel } from '../../../lib/srs';
 import { Word } from '../../../lib/types';
-import { Button, EmptyState } from '../../../components/ui';
+import { EmptyState } from '../../../components/ui';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { WordDraft, WordEditorModal } from '../../../components/WordEditorModal';
 
@@ -193,22 +193,6 @@ export default function WordbookDetailScreen() {
         <Chip label="不在单词本中" active={inBook === 'out'} onPress={() => setInBook('out')} />
       </View>
 
-      {/* 学习方式 */}
-      <View style={styles.learnSection}>
-        <Button
-          label="AI 短文阅读"
-          icon="sparkles"
-          onPress={() => router.push(`/wordbook/${book.id}/reading`)}
-        />
-        <Button
-          label="背诵（选对释义）"
-          icon="albums"
-          variant="outline"
-          disabled={book.words.length === 0}
-          onPress={() => router.push(`/wordbook/${book.id}/study`)}
-        />
-      </View>
-
       {/* 单词列表 */}
       {words.length === 0 ? (
         <EmptyState
@@ -299,11 +283,6 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 13, color: colors.textMuted },
   chipTextActive: { color: '#fff', fontWeight: '600' },
-  learnSection: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    gap: spacing.sm,
-  },
   wordRow: {
     flexDirection: 'row',
     alignItems: 'center',
