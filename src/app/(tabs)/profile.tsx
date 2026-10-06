@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../lib/AppContext';
 import { colors, radius, spacing } from '../../lib/theme';
@@ -16,9 +16,12 @@ export default function ProfileScreen() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [settings, setSettings] = useState<StudySettings | null>(null);
 
-  useEffect(() => {
-    loadStudySettings().then(setSettings);
-  }, []);
+  // 每次进入该页（获得焦点）都重新读取设置，确保测验后词汇量能刷新
+  useFocusEffect(
+    useCallback(() => {
+      loadStudySettings().then(setSettings);
+    }, [])
+  );
 
   const totalWords = wordbooks.reduce((s, b) => s + b.words.length, 0);
   const levelSample = settings?.level
