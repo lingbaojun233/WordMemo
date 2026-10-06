@@ -160,6 +160,7 @@ function Stepper({
           keyboardType="number-pad"
           selectTextOnFocus
           maxLength={4}
+          scrollEnabled={false}
         />
         <Pressable
           style={({ pressed }) => [styles.stepBtn, pressed && { opacity: 0.6 }]}

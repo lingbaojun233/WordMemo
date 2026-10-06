@@ -103,7 +103,11 @@ export default function AllWordsScreen() {
         level: e.level,
         derivatives: Array.from(e.derivatives.entries()).map(([t, m]) => ({ term: t, meaning: m })),
       }))
-      .sort((a, b) => a.term.localeCompare(b.term));
+      .sort((a, b) => {
+        const x = a.term.toLowerCase();
+        const y = b.term.toLowerCase();
+        return x < y ? -1 : x > y ? 1 : 0;
+      });
   }, []);
 
   const boxOf = (term: string) => progressMap.get(term.toLowerCase()) ?? 0;
@@ -242,6 +246,11 @@ export default function AllWordsScreen() {
           keyExtractor={(e) => e.term.toLowerCase()}
           renderItem={renderEntry}
           contentContainerStyle={styles.listContent}
+          initialNumToRender={14}
+          maxToRenderPerBatch={18}
+          windowSize={9}
+          removeClippedSubviews
+          keyboardShouldPersistTaps="handled"
         />
       )}
     </View>
