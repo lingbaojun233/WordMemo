@@ -47,22 +47,20 @@ export default function StudyTab() {
     return { totalToLearn: total, learnedToday: learned, dueCount: due };
   }, [currentBook]);
 
-  // 目标进度
+  // 今日需学习进度（每日目标 / 截止日期都折算成「今日需学多少词」）
   const goal = useMemo(() => {
     if (!settings) return null;
-    if (settings.goalType === 'daily') {
-      const target = settings.dailyGoal;
-      const done = stats.learnedToday;
-      return { kind: 'daily' as const, target, done, remaining: Math.max(0, target - done) };
-    }
-    const days = Math.max(1, settings.deadlineDays);
-    const perDay = Math.ceil(stats.totalToLearn / days);
+    const target =
+      settings.goalType === 'daily'
+        ? settings.dailyGoal
+        : Math.ceil(stats.totalToLearn / Math.max(1, settings.deadlineDays));
+    const done = stats.learnedToday;
     return {
-      kind: 'deadline' as const,
-      days,
-      remaining: stats.totalToLearn,
-      perDay,
-      todayRemaining: Math.max(0, perDay - stats.learnedToday),
+      target,
+      done,
+      remaining: Math.max(0, target - done),
+      isDeadline: settings.goalType === 'deadline',
+      days: settings.deadlineDays,
     };
   }, [settings, stats]);
 
@@ -88,17 +86,6 @@ export default function StudyTab() {
     if (!currentBook) return;
     router.push(`/wordbook/${currentBook.id}/progress`);
   };
-
-  const needRemind = goal
-    ? goal.kind === 'daily'
-      ? goal.remaining > 0
-      : goal.todayRemaining > 0
-    : false;
-  const reminderText = goal
-    ? goal.kind === 'daily'
-      ? `今天还差 ${goal.remaining} 个新词未完成，继续加油！`
-      : `今天还需学习约 ${goal.todayRemaining} 词，才能按期学完`
-    : '';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -138,41 +125,21 @@ export default function StudyTab() {
         </View>
       ) : null}
 
-      {/* 目标进度 */}
+      {/* 今日需学习进度 */}
       {goal && currentBook ? (
         <View style={styles.goalCard}>
           <Text style={styles.goalTitle}>
-            {goal.kind === 'daily'
-              ? `今日目标 ${goal.done}/${goal.target} 词`
-              : `截止目标：${goal.days} 天内完成初学`}
+            今日需学习 {goal.done}/{goal.target} 词
+            {goal.isDeadline ? `（${goal.days} 天内完成初学）` : ''}
           </Text>
-          {goal.kind === 'daily' ? (
-            <>
-              <View style={styles.goalTrack}>
-                <View
-                  style={[
-                    styles.goalFill,
-                    { width: `${goal.target > 0 ? Math.min(100, (goal.done / goal.target) * 100) : 0}%` },
-                  ]}
-                />
-              </View>
-              <Text style={styles.goalDesc}>
-                {goal.remaining > 0 ? `还差 ${goal.remaining} 词` : '今日目标已达成 🎉'}
-              </Text>
-            </>
-          ) : (
-            <Text style={styles.goalDesc}>
-              还需 {goal.remaining} 词，每天约 {goal.perDay} 词
-            </Text>
-          )}
-        </View>
-      ) : null}
-
-      {/* 提醒横幅 */}
-      {needRemind && currentBook ? (
-        <View style={styles.reminder}>
-          <Ionicons name="notifications" size={18} color={colors.warning} />
-          <Text style={styles.reminderText}>{reminderText}</Text>
+          <View style={styles.goalTrack}>
+            <View
+              style={[
+                styles.goalFill,
+                { width: `${goal.target > 0 ? Math.min(100, (goal.done / goal.target) * 100) : 0}%` },
+              ]}
+            />
+          </View>
         </View>
       ) : null}
 
@@ -459,19 +426,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   goalFill: { height: 8, borderRadius: 4, backgroundColor: colors.primary },
-  goalDesc: { fontSize: 13, color: colors.textMuted, marginTop: spacing.sm },
-  reminder: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-    backgroundColor: '#FEF3C7',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    padding: spacing.md,
-  },
-  reminderText: { flex: 1, fontSize: 13, color: '#92400E', lineHeight: 19 },
   progressLink: {
     flexDirection: 'row',
     alignItems: 'center',

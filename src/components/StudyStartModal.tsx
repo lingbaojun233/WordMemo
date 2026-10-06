@@ -70,17 +70,17 @@ export function StudyStartModal({
               ))}
             </View>
 
-            {/* 阅读篇数（仅 AI 阅读模式） */}
+            {/* 每篇短文新词数（仅 AI 阅读模式） */}
             {mode === 'ai_reading' ? (
               <>
                 <Text style={styles.sectionLabel}>阅读设置</Text>
                 <View style={styles.section}>
                   <Stepper
-                    label="阅读几篇短文"
-                    value={settings.dailyPassages}
-                    min={1}
-                    max={10}
-                    onChange={(v) => onChange({ dailyPassages: v })}
+                    label="每篇短文新词数"
+                    value={settings.wordsPerPassage}
+                    min={3}
+                    max={30}
+                    onChange={(v) => onChange({ wordsPerPassage: v })}
                   />
                 </View>
               </>

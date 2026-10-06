@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -10,39 +10,40 @@ import {
 } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
 import { buildQuiz, QuizQuestion } from '../../../lib/quiz';
-import { generatePassage, GeneratedPassage, getAiConfig, parsePassage, PassageSegment } from '../../../lib/ai';
+import {
+  AiConfig,
+  generatePassage,
+  GeneratedPassage,
+  getAiConfig,
+  parsePassage,
+  PassageSegment,
+} from '../../../lib/ai';
 import { getDeviceModelInfo } from '../../../lib/localModel';
-import { pickDailyWords } from '../../../lib/srs';
 import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
+import {
+  clearReadingSession,
+  loadReadingSession,
+  saveReadingSession,
+} from '../../../lib/readingSession';
 import { colors, radius, spacing } from '../../../lib/theme';
 import { Word } from '../../../lib/types';
+import { shuffle, startOfToday } from '../../../lib/utils';
 import { Button } from '../../../components/ui';
 import { LEVEL_SAMPLES } from '../../../data/levelTestWords';
 
-type Phase = 'intro' | 'generating' | 'reading' | 'test' | 'result';
-
-function chunkEvenly<T>(arr: T[], count: number): T[][] {
-  if (count <= 0 || arr.length === 0) return [];
-  const size = Math.ceil(arr.length / count);
-  const chunks: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    chunks.push(arr.slice(i, i + size));
-  }
-  return chunks;
-}
+type Phase = 'intro' | 'reading' | 'test' | 'result';
 
 export default function ReadingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { wordbooks, reviewWord } = useApp();
+  const { wordbooks, reviewWord, currentUser } = useApp();
   const book = wordbooks.find((b) => b.id === id);
 
   const [settings, setSettings] = useState<StudySettings | null>(null);
   const [phase, setPhase] = useState<Phase>('intro');
   const [error, setError] = useState<string | null>(null);
-  const [genProgress, setGenProgress] = useState(0);
 
   const [targetWords, setTargetWords] = useState<Word[]>([]);
-  const [passages, setPassages] = useState<GeneratedPassage[]>([]);
+  const [passages, setPassages] = useState<(GeneratedPassage | null)[]>([]);
   const [passageIdx, setPassageIdx] = useState(0);
   const [selected, setSelected] = useState<PassageSegment | null>(null);
 
@@ -51,9 +52,104 @@ export default function ReadingScreen() {
   const [picked, setPicked] = useState<string | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
 
+  // 会话关键信息与分篇（用 ref 供异步生成时读取，避免闭包过期）
+  const sessionKeyRef = useRef<{ userId: string; bookId: string } | null>(null);
+  const chunkListRef = useRef<{ term: string; meaning: string }[][]>([]);
+  const passageIdxRef = useRef(0);
+  const restoredRef = useRef(false);
+
   useEffect(() => {
     loadStudySettings().then(setSettings);
   }, []);
+
+  useEffect(() => {
+    passageIdxRef.current = passageIdx;
+  }, [passageIdx]);
+
+  // 今日还需学习多少词
+  const remaining = useMemo(() => {
+    if (!book || !settings) return 0;
+    const start = startOfToday();
+    const learnedToday = book.words.filter(
+      (w) => w.lastReviewedAt && w.lastReviewedAt >= start
+    ).length;
+    if (settings.goalType === 'daily') {
+      return Math.max(0, settings.dailyGoal - learnedToday);
+    }
+    const active = book.words.filter((w) => w.box === 0).length;
+    const perDay = Math.ceil(active / Math.max(1, settings.deadlineDays));
+    return Math.max(0, perDay - learnedToday);
+  }, [book, settings]);
+
+  // 本次要学的新词（box 0）
+  const targetCandidates = useMemo(() => {
+    if (!book || !settings || remaining <= 0) return [];
+    const newWords = book.words.filter((w) => w.box === 0);
+    const ordered = settings.pickMode === 'random' ? shuffle(newWords) : newWords;
+    return ordered.slice(0, remaining);
+  }, [book, settings, remaining]);
+
+  // 分篇：每篇 wordsPerPassage 个新词
+  const chunkCount = useMemo(() => {
+    const per = Math.max(1, settings?.wordsPerPassage ?? 8);
+    return Math.ceil(targetCandidates.length / per);
+  }, [targetCandidates, settings]);
+
+  const persist = (words: Word[], chunks: { term: string; meaning: string }[][], psgs: (GeneratedPassage | null)[], idx: number) => {
+    const key = sessionKeyRef.current;
+    if (!key) return;
+    saveReadingSession(key.userId, key.bookId, {
+      targetWords: words,
+      chunks,
+      passages: psgs,
+      passageIdx: idx,
+    }).catch(() => {});
+  };
+
+  // 逐篇生成（跳过已生成的），每生成一篇即保存；单篇失败则跳过继续
+  const generateAll = async (
+    cfg: AiConfig,
+    chunks: { term: string; meaning: string }[][],
+    words: Word[],
+    level: string,
+    initial: (GeneratedPassage | null)[]
+  ) => {
+    const base = initial.slice();
+    for (let i = 0; i < chunks.length; i++) {
+      if (base[i]) continue;
+      try {
+        const p = await generatePassage({
+          config: cfg,
+          targetWords: chunks[i],
+          readerLevel: level,
+        });
+        base[i] = p;
+        setPassages([...base]);
+        persist(words, chunks, [...base], passageIdxRef.current);
+      } catch {
+        // 单篇失败：跳过，继续下一篇
+      }
+    }
+  };
+
+  // 进入时恢复未完成的会话
+  useEffect(() => {
+    if (!book || !currentUser || !settings || restoredRef.current) return;
+    restoredRef.current = true;
+    const key = { userId: currentUser.id, bookId: book.id };
+    sessionKeyRef.current = key;
+    loadReadingSession(key.userId, key.bookId).then((s) => {
+      if (s && s.targetWords.length > 0 && s.passages.length > 0) {
+        setTargetWords(s.targetWords);
+        setPassages(s.passages);
+        setPassageIdx(Math.min(s.passageIdx, s.passages.length - 1));
+        chunkListRef.current = s.chunks;
+        setPhase('reading');
+        generateAll(getAiConfig(settings), s.chunks, s.targetWords, settings.level ?? 'senior', s.passages);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book?.id, currentUser?.id, settings]);
 
   if (!book) {
     return (
@@ -68,49 +164,41 @@ export default function ReadingScreen() {
     : '未测验';
 
   const start = async () => {
-    if (!settings) return;
-    const config = getAiConfig(settings);
-    if (config.provider === 'online' && !config.apiKey) {
+    if (!settings || !currentUser) return;
+    const cfg = getAiConfig(settings);
+    if (cfg.provider === 'online' && !cfg.apiKey) {
       setError('请先在「学习设置」中填写联网模型 API Key');
       return;
     }
-    if (config.provider === 'device') {
-      const info = await getDeviceModelInfo(config.modelName);
+    if (cfg.provider === 'device') {
+      const info = await getDeviceModelInfo(cfg.modelName);
       if (!info.downloaded) {
         setError('设备端模型尚未下载，请先到「学习设置」中下载模型');
         return;
       }
     }
-    const words = pickDailyWords(book.words, settings.dailyWords, settings.pickMode);
+
+    const words = targetCandidates;
     if (words.length === 0) {
-      setError('该单词本暂无单词，请先导入或添加单词');
+      setError('今日目标已完成，无需再生成短文');
       return;
     }
+
+    const per = Math.max(1, settings.wordsPerPassage ?? 8);
+    const chunks: { term: string; meaning: string }[][] = [];
+    for (let i = 0; i < words.length; i += per) {
+      chunks.push(words.slice(i, i + per).map((w) => ({ term: w.term, meaning: w.meaning })));
+    }
+
+    sessionKeyRef.current = { userId: currentUser.id, bookId: book.id };
+    chunkListRef.current = chunks;
     setError(null);
     setTargetWords(words);
-    setPhase('generating');
-
-    const chunks = chunkEvenly(words, settings.dailyPassages);
-    const level = settings.level ?? 'senior'; // 未测验时默认按高中水平生成
-    const generated: GeneratedPassage[] = [];
-    for (let i = 0; i < chunks.length; i++) {
-      setGenProgress(i);
-      try {
-        const p = await generatePassage({
-          config,
-          targetWords: chunks[i].map((w) => ({ term: w.term, meaning: w.meaning })),
-          readerLevel: level,
-        });
-        generated.push(p);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-        setPhase('intro');
-        return;
-      }
-    }
-    setPassages(generated);
+    setPassages(new Array(chunks.length).fill(null));
     setPassageIdx(0);
     setPhase('reading');
+
+    generateAll(cfg, chunks, words, settings.level ?? 'senior', new Array(chunks.length).fill(null));
   };
 
   const beginTest = () => {
@@ -127,20 +215,20 @@ export default function ReadingScreen() {
     const q = quiz[quizIdx];
     const isCorrect = option === q.correct;
     if (isCorrect) setCorrectCount((c) => c + 1);
-    // 更新记忆进度
     reviewWord(book.id, q.id, isCorrect ? 'good' : 'again');
-    // 选完后短暂显示对错，自动进入下一题
     setTimeout(() => {
       if (quizIdx + 1 < quiz.length) {
         setQuizIdx(quizIdx + 1);
         setPicked(null);
       } else {
+        const key = sessionKeyRef.current;
+        if (key) clearReadingSession(key.userId, key.bookId);
         setPhase('result');
       }
     }, 800);
   };
 
-  // ---------- 各阶段渲染 ----------
+  // ---------- 开始页 ----------
   if (phase === 'intro') {
     return (
       <View style={styles.container}>
@@ -155,15 +243,17 @@ export default function ReadingScreen() {
           </Text>
 
           <View style={styles.summaryCard}>
-            <SummaryRow label="每天阅读" value={`${settings?.dailyPassages ?? 2} 篇`} />
-            <SummaryRow label="每天背诵" value={`${settings?.dailyWords ?? 20} 词`} />
+            <SummaryRow label="今日需学习" value={`${remaining} 词`} />
+            <SummaryRow label="每篇短文" value={`约 ${settings?.wordsPerPassage ?? 8} 个新词`} />
+            <SummaryRow label="共约" value={`${chunkCount} 篇`} />
             <SummaryRow label="我的水平" value={levelLabel} />
-            <SummaryRow label="本次生词" value={`${Math.min(settings?.dailyWords ?? 20, book.words.length)} 个`} />
           </View>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <Button label="生成短文" icon="sparkles" onPress={start} style={{ alignSelf: 'stretch' }} />
+          {remaining > 0 ? (
+            <Button label="开始阅读" icon="sparkles" onPress={start} style={{ alignSelf: 'stretch' }} />
+          ) : null}
           <Button
             label="未测水平？先做词汇测验"
             variant="ghost"
@@ -176,31 +266,32 @@ export default function ReadingScreen() {
     );
   }
 
-  if (phase === 'generating') {
-    return (
-      <View style={styles.container}>
-        <Stack.Screen options={{ title: 'AI 写短文，阅读后测验', headerBackTitle: '返回' }} />
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.generatingText}>
-            正在生成第 {genProgress + 1} 篇短文…
-          </Text>
-          <Text style={styles.generatingHint}>AI 正在为你撰写包含目标单词的短文</Text>
-        </View>
-      </View>
-    );
-  }
-
+  // ---------- 阅读页 ----------
   if (phase === 'reading') {
     const p = passages[passageIdx];
-    if (!p) return null;
+    if (!p) {
+      return (
+        <View style={styles.container}>
+          <Stack.Screen options={{ title: 'AI 写短文，阅读后测验', headerBackTitle: '返回' }} />
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.generatingText}>正在生成第 {passageIdx + 1} 篇短文…</Text>
+            <Text style={styles.generatingHint}>可稍等片刻，其它短文正在后台生成</Text>
+          </View>
+        </View>
+      );
+    }
+
     const glossary = new Map(p.glossary.map((g) => [g.word, g.meaning]));
     const segments = parsePassage(p.passage, glossary);
     const isLast = passageIdx + 1 >= passages.length;
+    const nextReady = !isLast && passages[passageIdx + 1] != null;
 
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: `短文 ${passageIdx + 1}/${passages.length}`, headerBackTitle: '返回' }} />
+        <Stack.Screen
+          options={{ title: `短文 ${passageIdx + 1}/${passages.length}`, headerBackTitle: '返回' }}
+        />
 
         <ScrollView contentContainerStyle={styles.readingContent}>
           <Text style={styles.passageTitle}>{p.title}</Text>
@@ -225,7 +316,6 @@ export default function ReadingScreen() {
           <Text style={styles.tapHint}>点击高亮单词查看释义</Text>
         </ScrollView>
 
-        {/* 底部释义栏 */}
         {selected ? (
           <View style={styles.meaningBar}>
             <Text style={styles.meaningTerm}>{selected.text}</Text>
@@ -235,14 +325,17 @@ export default function ReadingScreen() {
 
         <View style={styles.bottomBtn}>
           <Button
-            label={isLast ? '开始测试' : '下一篇'}
+            label={isLast ? '开始测试' : nextReady ? '下一篇' : '生成下一篇中…'}
             icon={isLast ? 'create' : 'arrow-forward'}
+            disabled={!isLast && !nextReady}
             onPress={() => {
               if (isLast) {
                 beginTest();
-              } else {
-                setPassageIdx(passageIdx + 1);
+              } else if (nextReady) {
+                const next = passageIdx + 1;
+                setPassageIdx(next);
                 setSelected(null);
+                persist(targetWords, chunkListRef.current, passages, next);
               }
             }}
           />
@@ -251,6 +344,7 @@ export default function ReadingScreen() {
     );
   }
 
+  // ---------- 测试页 ----------
   if (phase === 'test') {
     const q = quiz[quizIdx];
     if (!q) return null;
