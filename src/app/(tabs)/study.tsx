@@ -29,7 +29,6 @@ const PICK_MODES: { key: PickMode; title: string; icon: keyof typeof Ionicons.gl
 export default function StudyTab() {
   const { wordbooks } = useApp();
   const [settings, setSettings] = useState<StudySettings | null>(null);
-  const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
 
   useEffect(() => {
     loadStudySettings().then(setSettings);
@@ -42,68 +41,204 @@ export default function StudyTab() {
     await saveStudySettings(next);
   };
 
-  const selectedBook = wordbooks.find((b) => b.id === selectedBookId) ?? null;
+  // 当前学习的单词本（持久化；无匹配则回退到第一个词本）
+  const currentBook = settings
+    ? (wordbooks.find((b) => b.id === settings.currentBookId) ?? wordbooks[0] ?? null)
+    : null;
 
-  // 到期且非新词的单词数量（已学过、到时间需要复习）
-  const dueCount = useMemo(() => {
-    if (!selectedBook) return 0;
-    return selectedBook.words.filter((w) => !isNew(w) && isDue(w)).length;
-  }, [selectedBook]);
-
-  // 进度概览（跨词本按词形去重）：今日已学习 / 需要复习 / 总共需学习
-  const { learnedToday, dueAllCount, totalToLearn } = useMemo(() => {
+  // 当前词本统计
+  const stats = useMemo(() => {
+    if (!currentBook) return { totalToLearn: 0, learnedToday: 0, dueCount: 0 };
     const start = startOfToday();
-    const seen = new Set<string>();
+    let total = 0;
     let learned = 0;
     let due = 0;
-    let toLearn = 0;
-    for (const b of wordbooks) {
-      for (const w of b.words) {
-        const key = w.term.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        if (w.lastReviewedAt && w.lastReviewedAt >= start) learned++;
-        if (!isNew(w) && isDue(w)) due++;
-        if (!isGraduated(w)) toLearn++;
-      }
+    for (const w of currentBook.words) {
+      if (!isGraduated(w)) total++;
+      if (w.lastReviewedAt && w.lastReviewedAt >= start) learned++;
+      if (!isNew(w) && isDue(w)) due++;
     }
-    return { learnedToday: learned, dueAllCount: due, totalToLearn: toLearn };
-  }, [wordbooks]);
+    return { totalToLearn: total, learnedToday: learned, dueCount: due };
+  }, [currentBook]);
+
+  // 目标进度
+  const goal = useMemo(() => {
+    if (!settings) return null;
+    if (settings.goalType === 'daily') {
+      const target = settings.dailyGoal;
+      const done = stats.learnedToday;
+      return { kind: 'daily' as const, target, done, remaining: Math.max(0, target - done) };
+    }
+    const days = Math.max(1, settings.deadlineDays);
+    const perDay = Math.ceil(stats.totalToLearn / days);
+    return {
+      kind: 'deadline' as const,
+      days,
+      remaining: stats.totalToLearn,
+      perDay,
+      todayRemaining: Math.max(0, perDay - stats.learnedToday),
+    };
+  }, [settings, stats]);
 
   if (!settings) return <View style={styles.container} />;
 
   const mode = settings.studyMode ?? 'memorize_quiz';
 
   const start = () => {
-    if (!selectedBook) return;
+    if (!currentBook) return;
     if (mode === 'memorize_quiz') {
-      router.push(`/wordbook/${selectedBook.id}/study`);
+      router.push(`/wordbook/${currentBook.id}/study`);
     } else if (mode === 'ai_reading') {
-      router.push(`/wordbook/${selectedBook.id}/reading`);
+      router.push(`/wordbook/${currentBook.id}/reading`);
     }
   };
 
   const startReview = () => {
-    if (!selectedBook) return;
-    router.push(`/wordbook/${selectedBook.id}/review`);
+    if (!currentBook) return;
+    router.push(`/wordbook/${currentBook.id}/review`);
   };
+
+  const openProgress = () => {
+    if (!currentBook) return;
+    router.push(`/wordbook/${currentBook.id}/progress`);
+  };
+
+  const needRemind = goal
+    ? goal.kind === 'daily'
+      ? goal.remaining > 0
+      : goal.todayRemaining > 0
+    : false;
+  const reminderText = goal
+    ? goal.kind === 'daily'
+      ? `今天还差 ${goal.remaining} 个新词未完成，继续加油！`
+      : `今天还需学习约 ${goal.todayRemaining} 词，才能按期学完`
+    : '';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* 学习进度 */}
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{learnedToday}</Text>
-          <Text style={styles.statLabel}>今日已学习</Text>
+      {/* 切换单词本 */}
+      <Text style={styles.sectionTitle}>当前单词本</Text>
+      {wordbooks.length === 0 ? (
+        <Pressable style={styles.emptyBook} onPress={() => router.push('/builtin')}>
+          <Ionicons name="library-outline" size={20} color={colors.primary} />
+          <Text style={styles.emptyBookText}>还没有单词本，去内置词库添加</Text>
+        </Pressable>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.bookSwitch}
+        >
+          {wordbooks.map((b) => (
+            <Chip
+              key={b.id}
+              label={b.name}
+              active={b.id === currentBook?.id}
+              onPress={() => update({ currentBookId: b.id })}
+            />
+          ))}
+        </ScrollView>
+      )}
+
+      {/* 当前词本统计 */}
+      {currentBook ? (
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{stats.totalToLearn}</Text>
+            <Text style={styles.statLabel}>总共需学习</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{stats.learnedToday}</Text>
+            <Text style={styles.statLabel}>今日已学习</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{stats.dueCount}</Text>
+            <Text style={styles.statLabel}>需要复习</Text>
+          </View>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{dueAllCount}</Text>
-          <Text style={styles.statLabel}>需要复习</Text>
+      ) : null}
+
+      {/* 目标进度 */}
+      {goal && currentBook ? (
+        <View style={styles.goalCard}>
+          <Text style={styles.goalTitle}>
+            {goal.kind === 'daily'
+              ? `今日目标 ${goal.done}/${goal.target} 词`
+              : `截止目标：${goal.days} 天内学完`}
+          </Text>
+          {goal.kind === 'daily' ? (
+            <>
+              <View style={styles.goalTrack}>
+                <View
+                  style={[
+                    styles.goalFill,
+                    { width: `${goal.target > 0 ? Math.min(100, (goal.done / goal.target) * 100) : 0}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.goalDesc}>
+                {goal.remaining > 0 ? `还差 ${goal.remaining} 词` : '今日目标已达成 🎉'}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.goalDesc}>
+              还需 {goal.remaining} 词，每天约 {goal.perDay} 词
+            </Text>
+          )}
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{totalToLearn}</Text>
-          <Text style={styles.statLabel}>总共需学习</Text>
+      ) : null}
+
+      {/* 提醒横幅 */}
+      {needRemind && currentBook ? (
+        <View style={styles.reminder}>
+          <Ionicons name="notifications" size={18} color={colors.warning} />
+          <Text style={styles.reminderText}>{reminderText}</Text>
         </View>
+      ) : null}
+
+      {/* 各阶段学习情况 */}
+      {currentBook ? (
+        <Pressable style={styles.progressLink} onPress={openProgress}>
+          <Ionicons name="stats-chart" size={18} color={colors.primary} />
+          <Text style={styles.progressLinkText}>查看各阶段学习情况</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
+        </Pressable>
+      ) : null}
+
+      {/* 学习目标 */}
+      <Text style={styles.sectionTitle}>学习目标</Text>
+      <View style={styles.card}>
+        <View style={styles.goalTypeRow}>
+          <Chip
+            label="每日目标"
+            active={settings.goalType === 'daily'}
+            onPress={() => update({ goalType: 'daily' })}
+          />
+          <Chip
+            label="截止日期"
+            active={settings.goalType === 'deadline'}
+            onPress={() => update({ goalType: 'deadline' })}
+          />
+        </View>
+        {settings.goalType === 'daily' ? (
+          <Stepper
+            label="每天新学单词数"
+            value={settings.dailyGoal}
+            min={5}
+            max={200}
+            step={5}
+            onChange={(v) => update({ dailyGoal: v })}
+          />
+        ) : (
+          <Stepper
+            label="希望在几天内学完"
+            value={settings.deadlineDays}
+            min={7}
+            max={365}
+            step={7}
+            onChange={(v) => update({ deadlineDays: v })}
+          />
+        )}
       </View>
 
       {/* 学习方式 */}
@@ -173,10 +308,7 @@ export default function StudyTab() {
         {PICK_MODES.map((p, i) => (
           <View key={p.key}>
             {i > 0 ? <View style={styles.divider} /> : null}
-            <Pressable
-              style={styles.modeRow}
-              onPress={() => update({ pickMode: p.key })}
-            >
+            <Pressable style={styles.modeRow} onPress={() => update({ pickMode: p.key })}>
               <Ionicons name={p.icon} size={20} color={colors.primary} />
               <Text style={styles.modeText}>{p.title}</Text>
               <Ionicons
@@ -189,57 +321,36 @@ export default function StudyTab() {
         ))}
       </View>
 
-      {/* 选择单词本 */}
-      <Text style={styles.sectionTitle}>选择单词本</Text>
-      {wordbooks.length === 0 ? (
-        <Pressable style={styles.emptyBook} onPress={() => router.push('/builtin')}>
-          <Ionicons name="library-outline" size={20} color={colors.primary} />
-          <Text style={styles.emptyBookText}>还没有单词本，去内置词库添加</Text>
-        </Pressable>
-      ) : (
-        <View style={styles.card}>
-          {wordbooks.map((b, i) => (
-            <View key={b.id}>
-              {i > 0 ? <View style={styles.divider} /> : null}
-              <Pressable
-                style={styles.modeRow}
-                onPress={() => setSelectedBookId(b.id)}
-              >
-                <Ionicons name="book" size={18} color={colors.primary} />
-                <View style={styles.bookBody}>
-                  <Text style={styles.modeText}>{b.name}</Text>
-                  <Text style={styles.bookCount}>{b.words.length} 词</Text>
-                </View>
-                <Ionicons
-                  name={selectedBookId === b.id ? 'radio-button-on' : 'radio-button-off'}
-                  size={20}
-                  color={selectedBookId === b.id ? colors.primary : colors.textLight}
-                />
-              </Pressable>
-            </View>
-          ))}
-        </View>
-      )}
-
       {/* 开始学习 */}
       <Button
         label={mode === 'ai_reading' ? '开始阅读学习' : '开始背诵学习'}
         icon="play"
         onPress={start}
-        disabled={!selectedBook || mode === 'ai_questions'}
+        disabled={!currentBook || mode === 'ai_questions'}
         style={{ marginTop: spacing.lg }}
       />
 
       {/* 复习到期单词 */}
       <Button
-        label={dueCount > 0 ? `复习到期单词（${dueCount} 个）` : '暂无到期单词'}
+        label={stats.dueCount > 0 ? `复习到期单词（${stats.dueCount} 个）` : '暂无到期单词'}
         icon="refresh"
         variant="outline"
         onPress={startReview}
-        disabled={!selectedBook || dueCount === 0}
+        disabled={!currentBook || stats.dueCount === 0}
         style={{ marginTop: spacing.md }}
       />
     </ScrollView>
+  );
+}
+
+function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && { opacity: 0.7 }]}
+      onPress={onPress}
+    >
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -285,7 +396,19 @@ function Stepper({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, paddingBottom: 40 },
-  statsRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.sm },
+  bookSwitch: { flexDirection: 'row', gap: spacing.sm, paddingVertical: 2 },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontSize: 13, color: colors.textMuted },
+  chipTextActive: { color: '#fff', fontWeight: '600' },
+  statsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   statCard: {
     flex: 1,
     backgroundColor: colors.card,
@@ -293,10 +416,53 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.md,
   },
-  statValue: { fontSize: 28, fontWeight: '800', color: colors.primary },
-  statLabel: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+  statValue: { fontSize: 24, fontWeight: '800', color: colors.primary },
+  statLabel: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
+  goalCard: {
+    marginTop: spacing.md,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  goalTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+  goalTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+    marginTop: spacing.sm,
+  },
+  goalFill: { height: 8, borderRadius: 4, backgroundColor: colors.primary },
+  goalDesc: { fontSize: 13, color: colors.textMuted, marginTop: spacing.sm },
+  reminder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    backgroundColor: '#FEF3C7',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    padding: spacing.md,
+  },
+  reminderText: { flex: 1, fontSize: 13, color: '#92400E', lineHeight: 19 },
+  progressLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  progressLinkText: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.primary },
+  goalTypeRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
@@ -344,6 +510,4 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   emptyBookText: { flex: 1, fontSize: 14, color: colors.primaryDark },
-  bookBody: { flex: 1 },
-  bookCount: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
 });

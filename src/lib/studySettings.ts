@@ -8,6 +8,9 @@ export type StudyMode = 'memorize_quiz' | 'ai_reading' | 'ai_questions';
 // AI 服务来源：联网模型（DeepSeek/OpenAI 兼容）或设备端模型（llama.cpp 端侧推理）
 export type AiProvider = 'online' | 'device';
 
+// 学习目标类型：每日目标 / 截止日期（天数内学完）
+export type GoalType = 'daily' | 'deadline';
+
 export type StudySettings = {
   aiProvider: AiProvider; // 当前使用的 AI 来源
   aiApiKey: string; // 联网模型 API Key
@@ -22,6 +25,10 @@ export type StudySettings = {
   vocab: number | null; // 精确估测词汇量（含未通过级别的部分词汇，null 表示未测）
   studyMode: StudyMode | null; // 学习模式（null 表示未选择）
   onboardingDone: boolean; // 是否已完成注册引导
+  currentBookId: string | null; // 当前学习的单词本
+  goalType: GoalType; // 学习目标类型
+  dailyGoal: number; // 每日目标（每天新学单词数）
+  deadlineDays: number; // 截止目标（希望在 N 天内学完当前词本）
 };
 
 const KEY = 'wordmemo:studySettings:v1';
@@ -41,6 +48,10 @@ export const DEFAULT_SETTINGS: StudySettings = {
   vocab: null,
   studyMode: null,
   onboardingDone: false,
+  currentBookId: null,
+  goalType: 'daily',
+  dailyGoal: 20,
+  deadlineDays: 30,
 };
 
 export async function loadStudySettings(): Promise<StudySettings> {

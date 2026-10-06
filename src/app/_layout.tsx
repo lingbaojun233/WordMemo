@@ -76,6 +76,7 @@ function RootNavigator() {
             <Stack.Screen name="wordbook/[id]/reading" options={{ title: 'AI 写短文，阅读后测验' }} />
             <Stack.Screen name="wordbook/[id]/study" options={{ title: '先背诵后测验' }} />
             <Stack.Screen name="wordbook/[id]/review" options={{ title: '复习' }} />
+            <Stack.Screen name="wordbook/[id]/progress" options={{ title: '各阶段学习情况' }} />
           </Stack.Protected>
 
           {/* 词汇水平测验：引导与设置中都可使用 */}
