@@ -65,7 +65,7 @@ export default function OnboardingScreen() {
             <Ionicons name="book" size={36} color={colors.primary} />
           </View>
           <Text style={styles.title}>选择学习模式</Text>
-          <Text style={styles.subtitle}>先选一个你喜欢的模式，后续可在「设置」中更改</Text>
+          <Text style={styles.subtitle}>先选一个你喜欢的模式，后续可在「学习」页面中修改</Text>
         </View>
 
         <View style={styles.modeList}>
