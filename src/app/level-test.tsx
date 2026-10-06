@@ -2,18 +2,43 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { LEVEL_ORDER, LEVEL_SAMPLES, LevelKey, LevelSample } from '../data/levelTestWords';
+import { LEVEL_SAMPLES, LevelKey, LevelWord } from '../data/levelTestWords';
 import { loadStudySettings, saveStudySettings, StudySettings } from '../lib/studySettings';
 import { colors, radius, spacing } from '../lib/theme';
 import { Button } from '../components/ui';
 
+type Phase = 'intro' | 'test' | 'result';
+type Direction = 'e2c' | 'c2e';
+
 type QuizQ = {
-  term: string;
-  correct: string;
-  options: string[];
+  direction: Direction;
+  prompt: string; // 题干（英文单词 或 中文释义）
+  correct: string; // 正确选项
+  options: string[]; // 8 个选项
+};
+
+type LevelResult = {
   level: LevelKey;
   label: string;
+  correct: number;
+  total: number;
+  passed: boolean;
 };
+
+// 各等级对应的累计词汇量（大致估计，用于结果反馈）
+const VOCAB_SIZES: Record<LevelKey, number> = {
+  junior: 2000,
+  senior: 3500,
+  cet4: 4500,
+  cet6: 6000,
+  tem4: 8000,
+  tem8: 12000,
+  gre: 15000,
+};
+
+const INITIAL_QUESTIONS = 10; // 初始 10 题
+const MAX_QUESTIONS = 50; // 每级最多 50 题
+const PASS_RATE = 0.8; // 80% 通过
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -24,105 +49,137 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// 每个级别随机抽词，生成四选一题目
-function buildQuiz(sample: LevelSample, count: number): QuizQ[] {
-  const words = shuffle(sample.words).slice(0, count);
-  return words.map((w) => {
-    const others = sample.words.filter((x) => x.t !== w.t).map((x) => x.m);
-    const distractors = shuffle(others).slice(0, 3);
-    const options = shuffle(
-      [w.m, ...distractors].filter((v, i, a) => a.indexOf(v) === i)
-    );
-    return { term: w.t, correct: w.m, options, level: sample.level, label: sample.label };
-  });
-}
-
-function estimateLevel(questions: QuizQ[], answers: boolean[]): LevelKey {
-  const total = new Map<LevelKey, number>();
-  const correct = new Map<LevelKey, number>();
-  questions.forEach((q, i) => {
-    total.set(q.level, (total.get(q.level) ?? 0) + 1);
-    if (answers[i]) correct.set(q.level, (correct.get(q.level) ?? 0) + 1);
-  });
-  // 逐级判断：某级答对率达到 70% 视为「掌握」，一旦某级不达标就不再考虑更高（更难）的级别，
-  // 避免靠蒙对把水平高估到专八/GRE。
-  let level: LevelKey = 'junior';
-  for (const key of LEVEL_ORDER) {
-    const t = total.get(key) ?? 0;
-    const c = correct.get(key) ?? 0;
-    if (t > 0 && c / t >= 0.7) {
-      level = key;
-    } else {
-      break;
-    }
+// 随机出一道题：英译中 / 中译英，8 个选项，干扰项优先同词性
+function makeQuestion(words: LevelWord[]): QuizQ {
+  const target = words[Math.floor(Math.random() * words.length)];
+  const pool = words.filter((w) => w.t !== target.t);
+  const samePos = pool.filter((w) => w.p === target.p);
+  const candidates = shuffle([...samePos, ...shuffle(pool)]);
+  const distractors: LevelWord[] = [];
+  const usedMeanings = new Set([target.m]);
+  for (const w of candidates) {
+    if (distractors.length >= 7) break;
+    if (usedMeanings.has(w.m)) continue;
+    usedMeanings.add(w.m);
+    distractors.push(w);
   }
-  return level;
-}
 
-type LevelRate = { level: LevelKey; label: string; correct: number; total: number; rate: number };
-
-function computeRates(questions: QuizQ[], answers: boolean[]): LevelRate[] {
-  return LEVEL_SAMPLES.map((s) => {
-    let total = 0;
-    let correct = 0;
-    questions.forEach((q, i) => {
-      if (q.level === s.level) {
-        total++;
-        if (answers[i]) correct++;
-      }
-    });
-    return { level: s.level, label: s.label, correct, total, rate: total > 0 ? correct / total : 0 };
-  });
+  const e2c = Math.random() < 0.5;
+  if (e2c) {
+    const options = shuffle([target.m, ...distractors.map((d) => d.m)]);
+    return { direction: 'e2c', prompt: target.t, correct: target.m, options };
+  }
+  const options = shuffle([target.t, ...distractors.map((d) => d.t)]);
+  return { direction: 'c2e', prompt: target.m, correct: target.t, options };
 }
 
 export default function LevelTestScreen() {
   const [settings, setSettings] = useState<StudySettings | null>(null);
-  const [phase, setPhase] = useState<'intro' | 'test' | 'result'>('intro');
-  const [questions, setQuestions] = useState<QuizQ[]>([]);
-  const [idx, setIdx] = useState(0);
+  const [phase, setPhase] = useState<Phase>('intro');
+
+  const [levelIdx, setLevelIdx] = useState(0);
+  const [results, setResults] = useState<LevelResult[]>([]);
+  const [question, setQuestion] = useState<QuizQ | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
-  const [answers, setAnswers] = useState<boolean[]>([]);
-  const [result, setResult] = useState<LevelKey | null>(null);
-  const [rates, setRates] = useState<LevelRate[]>([]);
+  const [correct, setCorrect] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [additional, setAdditional] = useState(false);
 
   useEffect(() => {
     loadStudySettings().then(setSettings);
   }, []);
 
+  const currentSample = LEVEL_SAMPLES[levelIdx];
+
   const start = () => {
-    const qs = LEVEL_SAMPLES.flatMap((s) => buildQuiz(s, 10));
-    setQuestions(qs);
-    setIdx(0);
+    setLevelIdx(0);
+    setResults([]);
+    setCorrect(0);
+    setTotal(0);
+    setAdditional(false);
     setPicked(null);
-    setAnswers([]);
+    setQuestion(makeQuestion(LEVEL_SAMPLES[0].words));
     setPhase('test');
   };
 
   const answer = (opt: string) => {
-    if (picked) return;
-    const q = questions[idx];
-    const isCorrect = opt === q.correct;
+    if (picked || !question) return;
     setPicked(opt);
-    const finalAnswers = [...answers, isCorrect];
-    setAnswers(finalAnswers);
-    setTimeout(() => {
-      if (idx + 1 < questions.length) {
-        setIdx(idx + 1);
-        setPicked(null);
-      } else {
-        finish(finalAnswers);
+    const isCorrect = opt === question.correct;
+    const nc = correct + (isCorrect ? 1 : 0);
+    const nt = total + 1;
+    setCorrect(nc);
+    setTotal(nt);
+
+    // 判定下一步
+    let action: 'next' | 'pass' | 'fail' | 'additional' = 'next';
+    if (!additional) {
+      // 初始 10 题：不提前结束，做完 10 题再判定
+      if (nt >= INITIAL_QUESTIONS) {
+        action = nc / nt >= PASS_RATE ? 'pass' : 'additional';
       }
-    }, 650);
+    } else {
+      // 追加测试：达标通过；错误过多则提前失败
+      if (nc / nt >= PASS_RATE) {
+        action = 'pass';
+      } else if (nt - nc > 10 || nt >= MAX_QUESTIONS) {
+        action = 'fail';
+      }
+    }
+
+    setTimeout(() => {
+      if (action === 'pass') {
+        passLevel(nc, nt);
+      } else if (action === 'fail') {
+        failLevel(nc, nt);
+      } else if (action === 'additional') {
+        setAdditional(true);
+        setPicked(null);
+        setQuestion(makeQuestion(currentSample.words));
+      } else {
+        setPicked(null);
+        setQuestion(makeQuestion(currentSample.words));
+      }
+    }, 550);
   };
 
-  const finish = async (finalAnswers: boolean[]) => {
-    const level = estimateLevel(questions, finalAnswers);
-    setResult(level);
-    setRates(computeRates(questions, finalAnswers));
-    setPhase('result');
-    if (settings) {
-      await saveStudySettings({ ...settings, level });
+  const passLevel = (nc: number, nt: number) => {
+    const sample = LEVEL_SAMPLES[levelIdx];
+    const newResults: LevelResult[] = [
+      ...results,
+      { level: sample.level, label: sample.label, correct: nc, total: nt, passed: true },
+    ];
+    const nextIdx = levelIdx + 1;
+    if (nextIdx < LEVEL_SAMPLES.length) {
+      setLevelIdx(nextIdx);
+      setResults(newResults);
+      setCorrect(0);
+      setTotal(0);
+      setAdditional(false);
+      setPicked(null);
+      setQuestion(makeQuestion(LEVEL_SAMPLES[nextIdx].words));
+    } else {
+      finish(newResults);
     }
+  };
+
+  const failLevel = (nc: number, nt: number) => {
+    const sample = LEVEL_SAMPLES[levelIdx];
+    const newResults: LevelResult[] = [
+      ...results,
+      { level: sample.level, label: sample.label, correct: nc, total: nt, passed: false },
+    ];
+    finish(newResults);
+  };
+
+  const finish = async (newResults: LevelResult[]) => {
+    const passed = newResults.filter((r) => r.passed);
+    const highest: LevelKey = passed.length > 0 ? passed[passed.length - 1].level : 'junior';
+    if (settings) {
+      await saveStudySettings({ ...settings, level: highest });
+    }
+    setResults(newResults);
+    setPhase('result');
   };
 
   // ---------- 开始页 ----------
@@ -136,9 +193,9 @@ export default function LevelTestScreen() {
           </View>
           <Text style={styles.title}>词汇水平测验</Text>
           <Text style={styles.desc}>
-            从初中到 GRE 共 7 个级别，每个级别随机 10 词、共 70 题。选择单词的正确释义，答对才算认识该词。
+            分级测试：通过当前级别（正确率 ≥80%）才能进入下一级别。每级先测 10 题，未通过则追加测试（每级最多 50 题）。
           </Text>
-          <Text style={styles.descMuted}>预计用时 5 分钟，测完自动估测你的词汇水平</Text>
+          <Text style={styles.descMuted}>题目为英译中/中译英随机，每题 8 个同词性选项</Text>
           <Button label="开始测验" icon="play" onPress={start} style={{ alignSelf: 'stretch' }} />
         </View>
       </View>
@@ -147,7 +204,13 @@ export default function LevelTestScreen() {
 
   // ---------- 结果页 ----------
   if (phase === 'result') {
-    const label = LEVEL_SAMPLES.find((s) => s.level === result)?.label ?? '';
+    const passed = results.filter((r) => r.passed);
+    const highest: LevelKey = passed.length > 0 ? passed[passed.length - 1].level : 'junior';
+    const hasPassed = passed.length > 0;
+    const vocab = hasPassed ? VOCAB_SIZES[highest] : 0;
+    const last = results[results.length - 1];
+    const lastPct = last ? Math.round((last.correct / last.total) * 100) : 0;
+
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ title: '词汇水平测验', headerBackTitle: '返回' }} />
@@ -156,14 +219,19 @@ export default function LevelTestScreen() {
             <Ionicons name="trophy" size={40} color={colors.success} />
           </View>
           <Text style={styles.title}>测验完成</Text>
-          <Text style={styles.desc}>估测你的词汇水平为</Text>
-          <Text style={styles.resultLevel}>{label}</Text>
+          <Text style={styles.vocabText}>
+            {hasPassed ? `约 ${vocab} 词` : '不足初中水平'}
+          </Text>
+          {last ? (
+            <Text style={styles.desc}>
+              {last.label} {last.correct}/{last.total}（{lastPct}%）
+            </Text>
+          ) : null}
 
           <View style={styles.rateCard}>
-            <Text style={styles.rateTitle}>各级答对情况（≥70% 视为掌握）</Text>
-            {rates.map((r) => {
-              const pct = Math.round(r.rate * 100);
-              const reached = r.rate >= 0.7;
+            <Text style={styles.rateTitle}>各级结果（≥80% 通过）</Text>
+            {results.map((r) => {
+              const pct = Math.round((r.correct / r.total) * 100);
               return (
                 <View key={r.level} style={styles.rateRow}>
                   <Text style={styles.rateLabel}>{r.label}</Text>
@@ -171,13 +239,17 @@ export default function LevelTestScreen() {
                     <View
                       style={[
                         styles.rateFill,
-                        { width: `${pct}%`, backgroundColor: reached ? colors.success : colors.warning },
+                        {
+                          width: `${Math.min(100, pct)}%`,
+                          backgroundColor: r.passed ? colors.success : colors.warning,
+                        },
                       ]}
                     />
                   </View>
-                  <Text style={[styles.rateValue, { color: reached ? colors.success : colors.textMuted }]}>
+                  <Text style={[styles.rateValue, { color: r.passed ? colors.success : colors.warning }]}>
                     {r.correct}/{r.total}
                   </Text>
+                  <Text style={styles.rateMark}>{r.passed ? '✓' : '✗'}</Text>
                 </View>
               );
             })}
@@ -193,49 +265,60 @@ export default function LevelTestScreen() {
   }
 
   // ---------- 测验页 ----------
-  const q = questions[idx];
-  if (!q) return null;
-  const progress = (idx + 1) / questions.length;
+  if (!question) return null;
+  const pct = Math.min(100, Math.round((correct / Math.max(1, total)) * 100));
+  const isWrong = picked !== null && picked !== question.correct;
 
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: '词汇水平测验', headerBackTitle: '返回' }} />
 
       <View style={styles.progressWrap}>
+        <Text style={styles.levelChip}>{currentSample.label}</Text>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+          <View style={[styles.progressFill, { width: `${pct}%` }]} />
         </View>
         <Text style={styles.progressText}>
-          {idx + 1} / {questions.length}
+          {correct}/{total}
+          {additional ? '（追加）' : ''}
         </Text>
       </View>
 
-      <View style={styles.testBody}>
-        <View style={styles.levelBadge}>
-          <Text style={styles.levelBadgeText}>{q.label}词汇</Text>
+      <ScrollView contentContainerStyle={styles.testScroll}>
+        <View style={styles.questionCard}>
+          <Text style={styles.questionLabel}>
+            {question.direction === 'e2c' ? '请选择正确的中文释义' : '请选择正确的英文单词'}
+          </Text>
+          <Text style={styles.questionPrompt}>{question.prompt}</Text>
         </View>
-        <Text style={styles.questionLabel}>请选择「{q.term}」的正确释义</Text>
-        {q.options.map((opt) => {
-          const isCorrect = opt === q.correct;
-          const isPicked = picked === opt;
-          let border = {};
-          if (picked) {
-            if (isCorrect) border = { borderColor: colors.success, backgroundColor: '#F0FDF4' };
-            else if (isPicked) border = { borderColor: colors.danger, backgroundColor: '#FEF2F2' };
-          }
-          return (
-            <Button
-              key={opt}
-              label={opt}
-              variant="outline"
-              onPress={() => answer(opt)}
-              disabled={picked !== null}
-              style={{ alignSelf: 'stretch', ...border }}
-              textStyle={{ textAlign: 'left' }}
-            />
-          );
-        })}
-      </View>
+
+        <View style={styles.options}>
+          {question.options.map((opt) => {
+            const isCorrect = opt === question.correct;
+            const isPicked = picked === opt;
+            let border = {};
+            if (picked) {
+              if (isCorrect) border = { borderColor: colors.success, backgroundColor: '#F0FDF4' };
+              else if (isPicked) border = { borderColor: colors.danger, backgroundColor: '#FEF2F2' };
+            }
+            return (
+              <Button
+                key={opt}
+                label={opt}
+                variant="outline"
+                onPress={() => answer(opt)}
+                disabled={picked !== null}
+                style={{ alignSelf: 'stretch', ...border }}
+                textStyle={{ textAlign: 'left', fontSize: 15 }}
+              />
+            );
+          })}
+        </View>
+
+        {isWrong ? (
+          <Text style={styles.correctHint}>正确选项：{question.correct}</Text>
+        ) : null}
+      </ScrollView>
     </View>
   );
 }
@@ -259,14 +342,9 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 22, fontWeight: '800', color: colors.text, textAlign: 'center' },
   desc: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 21 },
-  descMuted: { fontSize: 12, color: colors.textLight, textAlign: 'center', lineHeight: 18 },
-  resultLevel: { fontSize: 40, fontWeight: '800', color: colors.primary },
-  resultScroll: {
-    alignItems: 'center',
-    padding: spacing.lg,
-    gap: spacing.md,
-    paddingBottom: 40,
-  },
+  descMuted: { fontSize: 12, color: colors.textLight, textAlign: 'center', lineHeight: 18, marginBottom: spacing.sm },
+  vocabText: { fontSize: 40, fontWeight: '800', color: colors.primary },
+  resultScroll: { alignItems: 'center', padding: spacing.lg, gap: spacing.md, paddingBottom: 40 },
   rateCard: {
     alignSelf: 'stretch',
     backgroundColor: colors.card,
@@ -279,37 +357,40 @@ const styles = StyleSheet.create({
   rateTitle: { fontSize: 13, fontWeight: '700', color: colors.textMuted, marginBottom: 2 },
   rateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   rateLabel: { width: 40, fontSize: 13, color: colors.text },
-  rateTrack: {
-    flex: 1,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.border,
-    overflow: 'hidden',
-  },
+  rateTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: 'hidden' },
   rateFill: { height: 8, borderRadius: 4 },
   rateValue: { width: 36, fontSize: 12, fontWeight: '700', textAlign: 'right' },
+  rateMark: { width: 16, fontSize: 13, fontWeight: '700', textAlign: 'center', color: colors.textMuted },
   progressWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.md,
     gap: spacing.sm,
   },
-  progressTrack: {
-    flex: 1,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.border,
-    overflow: 'hidden',
-  },
-  progressFill: { height: 8, borderRadius: 4, backgroundColor: colors.primary },
-  progressText: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
-  testBody: { flex: 1, padding: spacing.lg, gap: spacing.md, alignItems: 'center' },
-  levelBadge: {
+  levelChip: {
     backgroundColor: colors.primaryLight,
     borderRadius: radius.full,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+    overflow: 'hidden',
   },
-  levelBadgeText: { fontSize: 13, fontWeight: '700', color: colors.primary },
-  questionLabel: { fontSize: 20, fontWeight: '700', color: colors.text, marginVertical: spacing.sm, textAlign: 'center' },
+  progressTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: 'hidden' },
+  progressFill: { height: 8, borderRadius: 4, backgroundColor: colors.success },
+  progressText: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  testScroll: { padding: spacing.lg, paddingBottom: 40, gap: spacing.md },
+  questionCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    alignItems: 'center',
+  },
+  questionLabel: { fontSize: 13, color: colors.textMuted },
+  questionPrompt: { fontSize: 24, fontWeight: '800', color: colors.text, marginTop: spacing.sm, textAlign: 'center', lineHeight: 32 },
+  options: { gap: spacing.sm },
+  correctHint: { fontSize: 14, color: colors.success, textAlign: 'center' },
 });
