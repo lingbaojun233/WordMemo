@@ -6,7 +6,7 @@ import { useApp } from '../../lib/AppContext';
 import { loadStudySettings, saveStudySettings, StudyMode, StudySettings } from '../../lib/studySettings';
 import { colors, radius, spacing } from '../../lib/theme';
 import { PickMode } from '../../lib/types';
-import { isDue, isNew } from '../../lib/srs';
+import { isDue, isGraduated, isNew } from '../../lib/srs';
 import { startOfToday } from '../../lib/utils';
 import { Button } from '../../components/ui';
 
@@ -50,12 +50,13 @@ export default function StudyTab() {
     return selectedBook.words.filter((w) => !isNew(w) && isDue(w)).length;
   }, [selectedBook]);
 
-  // 今日进度概览（跨词本按词形去重）：今日已学习 / 需要复习
-  const { learnedToday, dueAllCount } = useMemo(() => {
+  // 进度概览（跨词本按词形去重）：今日已学习 / 需要复习 / 总共需学习
+  const { learnedToday, dueAllCount, totalToLearn } = useMemo(() => {
     const start = startOfToday();
     const seen = new Set<string>();
     let learned = 0;
     let due = 0;
+    let toLearn = 0;
     for (const b of wordbooks) {
       for (const w of b.words) {
         const key = w.term.toLowerCase();
@@ -63,9 +64,10 @@ export default function StudyTab() {
         seen.add(key);
         if (w.lastReviewedAt && w.lastReviewedAt >= start) learned++;
         if (!isNew(w) && isDue(w)) due++;
+        if (!isGraduated(w)) toLearn++;
       }
     }
-    return { learnedToday: learned, dueAllCount: due };
+    return { learnedToday: learned, dueAllCount: due, totalToLearn: toLearn };
   }, [wordbooks]);
 
   if (!settings) return <View style={styles.container} />;
@@ -88,7 +90,7 @@ export default function StudyTab() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* 今日进度 */}
+      {/* 学习进度 */}
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{learnedToday}</Text>
@@ -97,6 +99,10 @@ export default function StudyTab() {
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{dueAllCount}</Text>
           <Text style={styles.statLabel}>需要复习</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{totalToLearn}</Text>
+          <Text style={styles.statLabel}>总共需学习</Text>
         </View>
       </View>
 
@@ -136,11 +142,11 @@ export default function StudyTab() {
         ))}
       </View>
 
-      {/* 今日学习量 */}
-      <Text style={styles.sectionTitle}>今日学习量</Text>
+      {/* 本次学习量 */}
+      <Text style={styles.sectionTitle}>本次学习量</Text>
       <View style={styles.card}>
         <Stepper
-          label="今日学习单词数"
+          label="本次学习单词数"
           value={settings.dailyWords}
           min={5}
           max={200}
