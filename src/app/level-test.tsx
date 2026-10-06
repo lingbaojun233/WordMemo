@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { LEVEL_SAMPLES, LevelKey, LevelWord } from '../data/levelTestWords';
+import { LEVEL_SAMPLES, LevelKey, LevelWord, VOCAB_SIZES } from '../data/levelTestWords';
 import { loadStudySettings, saveStudySettings, StudySettings } from '../lib/studySettings';
 import { colors, radius, spacing } from '../lib/theme';
 import { Button } from '../components/ui';
@@ -25,16 +25,7 @@ type LevelResult = {
   passed: boolean;
 };
 
-// 各等级对应的累计词汇量（大致估计，用于结果反馈）
-const VOCAB_SIZES: Record<LevelKey, number> = {
-  junior: 2000,
-  senior: 3500,
-  cet4: 4500,
-  cet6: 6000,
-  tem4: 8000,
-  tem8: 12000,
-  gre: 15000,
-};
+// 各等级对应的累计词汇量（大致估计，用于结果反馈）在 levelTestWords.ts 中定义并导入
 
 const INITIAL_QUESTIONS = 10; // 初始 10 题
 const MAX_QUESTIONS = 50; // 每级最多 50 题

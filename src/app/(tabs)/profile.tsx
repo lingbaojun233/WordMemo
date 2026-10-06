@@ -1,19 +1,31 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../lib/AppContext';
 import { colors, radius, spacing } from '../../lib/theme';
 import { formatDate } from '../../lib/utils';
 import { Button } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { loadStudySettings, StudySettings } from '../../lib/studySettings';
+import { LEVEL_SAMPLES, VOCAB_SIZES } from '../../data/levelTestWords';
 
 export default function ProfileScreen() {
   const { currentUser, wordbooks, logout } = useApp();
   const [loggingOut, setLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [settings, setSettings] = useState<StudySettings | null>(null);
+
+  useEffect(() => {
+    loadStudySettings().then(setSettings);
+  }, []);
 
   const totalWords = wordbooks.reduce((s, b) => s + b.words.length, 0);
+  const levelSample = settings?.level
+    ? LEVEL_SAMPLES.find((s) => s.level === settings.level)
+    : undefined;
+  const levelLabel = levelSample?.label ?? '';
+  const vocab = levelSample ? VOCAB_SIZES[levelSample.level] : 0;
 
   const confirmLogout = async () => {
     setShowLogoutConfirm(false);
@@ -45,6 +57,18 @@ export default function ProfileScreen() {
           <Text style={styles.statValue}>{totalWords}</Text>
           <Text style={styles.statLabel}>总单词</Text>
         </View>
+      </View>
+
+      {/* 词汇水平（来自词汇水平测验） */}
+      <View style={styles.vocabCard}>
+        <Ionicons name="trophy-outline" size={20} color={colors.primary} />
+        {levelSample ? (
+          <Text style={styles.vocabText}>
+            估计词汇量：约 <Text style={styles.vocabStrong}>{vocab} 词</Text>（{levelLabel}）
+          </Text>
+        ) : (
+          <Text style={styles.vocabText}>尚未测试词汇水平，可前往「词汇水平测验」</Text>
+        )}
       </View>
 
       <View style={styles.infoCard}>
@@ -151,6 +175,19 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 24, fontWeight: '800', color: colors.primary },
   statLabel: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+  vocabCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  vocabText: { flex: 1, fontSize: 14, color: colors.text, lineHeight: 21 },
+  vocabStrong: { fontWeight: '800', color: colors.primary },
   infoCard: {
     flexDirection: 'row',
     gap: spacing.sm,

@@ -13,3 +13,14 @@ export const LEVEL_SAMPLES: LevelSample[] = [
 ];
 
 export const LEVEL_ORDER: LevelKey[] = ['junior', 'senior', 'cet4', 'cet6', 'tem4', 'tem8', 'gre'];
+
+// 各等级对应的累计词汇量（大致估计，用于结果反馈）
+export const VOCAB_SIZES: Record<LevelKey, number> = {
+  junior: 2000,
+  senior: 3500,
+  cet4: 4500,
+  cet6: 6000,
+  tem4: 8000,
+  tem8: 12000,
+  gre: 15000,
+};
