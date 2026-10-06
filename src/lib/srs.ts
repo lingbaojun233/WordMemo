@@ -39,21 +39,14 @@ export function boxLabel(box: number): string {
 
 /**
  * 根据复习结果推进一个单词的记忆盒层级并计算下次复习时间。
- * - good：升级一层
- * - hard：保持在当前层（已学过），或视为新词
- * - again：退回一层（最低到 1），10 分钟后复习
+ * - good：通过，升一级（最高到 7）
+ * - again / hard：不通过，等级保持不变（不降级），按当前层级重新安排下次复习
  */
 export function applyReview(word: Word, result: ReviewResult, now = Date.now()): Word {
-  let box = word.box;
-
-  if (result === 'good') {
-    box = Math.min(MAX_BOX, box + 1);
-  } else if (result === 'again') {
-    box = Math.max(1, box - 1);
-  } else {
-    // hard：保持层级，但至少回到 1
-    box = Math.max(1, box);
-  }
+  const box =
+    result === 'good'
+      ? Math.min(MAX_BOX, word.box + 1)
+      : word.box; // 不通过：等级不变
 
   const dueAt = now + BOX_INTERVALS[box];
 

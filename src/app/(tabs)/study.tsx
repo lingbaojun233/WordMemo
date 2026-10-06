@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../lib/AppContext';
 import { loadStudySettings, saveStudySettings, StudyMode, StudySettings } from '../../lib/studySettings';
 import { colors, radius, spacing } from '../../lib/theme';
 import { PickMode } from '../../lib/types';
+import { isDue, isNew } from '../../lib/srs';
 import { Button } from '../../components/ui';
 
 const MODES: {
@@ -40,10 +41,17 @@ export default function StudyTab() {
     await saveStudySettings(next);
   };
 
+  const selectedBook = wordbooks.find((b) => b.id === selectedBookId) ?? null;
+
+  // 到期且非新词的单词数量（已学过、到时间需要复习）
+  const dueCount = useMemo(() => {
+    if (!selectedBook) return 0;
+    return selectedBook.words.filter((w) => !isNew(w) && isDue(w)).length;
+  }, [selectedBook]);
+
   if (!settings) return <View style={styles.container} />;
 
   const mode = settings.studyMode ?? 'memorize_quiz';
-  const selectedBook = wordbooks.find((b) => b.id === selectedBookId) ?? null;
 
   const start = () => {
     if (!selectedBook) return;
@@ -52,6 +60,11 @@ export default function StudyTab() {
     } else if (mode === 'ai_reading') {
       router.push(`/wordbook/${selectedBook.id}/reading`);
     }
+  };
+
+  const startReview = () => {
+    if (!selectedBook) return;
+    router.push(`/wordbook/${selectedBook.id}/review`);
   };
 
   return (
@@ -178,6 +191,16 @@ export default function StudyTab() {
         onPress={start}
         disabled={!selectedBook || mode === 'ai_questions'}
         style={{ marginTop: spacing.lg }}
+      />
+
+      {/* 复习到期单词 */}
+      <Button
+        label={dueCount > 0 ? `复习到期单词（${dueCount} 个）` : '暂无到期单词'}
+        icon="refresh"
+        variant="outline"
+        onPress={startReview}
+        disabled={!selectedBook || dueCount === 0}
+        style={{ marginTop: spacing.md }}
       />
     </ScrollView>
   );
