@@ -11,23 +11,25 @@ import {
 } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
 import { boxColors, colors, radius, spacing } from '../../../lib/theme';
-import { boxLabel, isMastered, isNew } from '../../../lib/srs';
+import { boxLabel, isGraduated, isMastered, isNew } from '../../../lib/srs';
 import { Word } from '../../../lib/types';
 import { EmptyState } from '../../../components/ui';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { WordHistoryModal } from '../../../components/WordHistoryModal';
 
-type StageKey = 'all' | 'new' | 'learning' | 'mastered';
+type StageKey = 'all' | 'new' | 'learning' | 'mastered' | 'graduated';
 
 const STAGES: { key: StageKey; label: string }[] = [
   { key: 'all', label: '全部' },
   { key: 'new', label: '新词' },
   { key: 'learning', label: '学习中' },
   { key: 'mastered', label: '已学会' },
+  { key: 'graduated', label: '已毕业' },
 ];
 
 function stageOf(w: Word): Exclude<StageKey, 'all'> {
   if (isNew(w)) return 'new';
+  if (isGraduated(w)) return 'graduated';
   if (isMastered(w)) return 'mastered';
   return 'learning';
 }

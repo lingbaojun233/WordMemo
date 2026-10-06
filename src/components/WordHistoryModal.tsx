@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { boxColors, colors, radius, spacing } from '../lib/theme';
-import { boxLabel, isDue, isNew } from '../lib/srs';
+import { boxLabel, isDue, isGraduated, isNew } from '../lib/srs';
 import { Word } from '../lib/types';
 import { formatDateTime } from '../lib/utils';
 import { Button } from './ui';
@@ -13,6 +13,7 @@ function accuracy(w: Word): string {
 }
 
 function nextReviewText(w: Word): string {
+  if (isGraduated(w)) return '已毕业，无需复习';
   if (isNew(w)) return '新词，尚未开始学习';
   if (isDue(w)) return '已到期，可复习';
   return formatDateTime(w.dueAt);

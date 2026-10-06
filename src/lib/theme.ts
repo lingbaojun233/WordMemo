@@ -22,7 +22,8 @@ export const boxColors = [
   '#84CC16', // 4
   '#10B981', // 5
   '#06B6D4', // 6
-  '#4F46E5', // 7 掌握 - 蓝
+  '#4F46E5', // 7 已学会 - 蓝
+  '#B8860B', // 8 已毕业 - 金
 ];
 
 export const spacing = {
