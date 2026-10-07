@@ -3,7 +3,6 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -42,12 +41,6 @@ import {
 
 type Phase = 'intro' | 'preview' | 'loading' | 'quiz' | 'done';
 
-const MODE_OPTIONS: { key: NextMode; label: string; icon: keyof typeof Ionicons.glyphMap; desc: string }[] = [
-  { key: 'mixed', label: '完整流程', icon: 'layers', desc: '5 词一组：先背词 → 简单题热身 → 表现好再上难题' },
-  { key: 'easy', label: '只测简单题', icon: 'leaf', desc: '只看释义、拼写填空等基础题，适合刚学或基础薄弱时' },
-  { key: 'hard', label: '只测难题', icon: 'flame', desc: '直接上翻译、完形、阅读、语法等难题，适合强化' },
-];
-
 function norm(s: string): string {
   return s
     .trim()
@@ -57,14 +50,14 @@ function norm(s: string): string {
 
 export default function GuidedScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { wordbooks } = useApp();
+  const { wordbooks, reviewWord } = useApp();
   const book = wordbooks.find((b) => b.id === id);
   const { state, update, ready } = useAiq();
 
   const [settings, setSettings] = useState<StudySettings | null>(null);
   const [phase, setPhase] = useState<Phase>('intro');
-  const [mode, setMode] = useState<NextMode>('mixed');
-  const modeInitRef = useRef(false);
+  // 记录本次会话每个单词的答对/答错次数（用于结束后升级掌握度）
+  const wordStatsRef = useRef(new Map<string, { correct: number; wrong: number }>());
 
   const [groups, setGroups] = useState<Word[][]>([]);
   const [groupIdx, setGroupIdx] = useState(0);
@@ -90,14 +83,6 @@ export default function GuidedScreen() {
   useEffect(() => {
     loadStudySettings().then(setSettings);
   }, []);
-
-  // 首次载入：用上次表现推荐的难度策略作为默认
-  useEffect(() => {
-    if (state && !modeInitRef.current) {
-      modeInitRef.current = true;
-      setMode(state.nextMode ?? 'mixed');
-    }
-  }, [state]);
 
   if (!book) {
     return (
@@ -125,6 +110,7 @@ export default function GuidedScreen() {
 
   const start = () => {
     setErrorMsg(null);
+    wordStatsRef.current.clear();
     const gs = buildWordGroups(book.words, state.attempts);
     if (gs.length === 0) {
       setErrorMsg('单词本里还没有可学习的单词');
@@ -168,7 +154,7 @@ export default function GuidedScreen() {
     setErrorMsg(null);
     setPhase('loading');
     try {
-      if (mode === 'hard') {
+      if (state.nextMode === 'hard') {
         await loadHardRound(group);
       } else {
         // 简单题：本地毫秒级（选释义 + 拼写填空，每个词各一题）
@@ -218,6 +204,13 @@ export default function GuidedScreen() {
       await update(
         applyAnswer({ state, question: q, userAnswer: value, result, group: state.group })
       );
+      for (const t of q.targetTerms) {
+        const key = t.toLowerCase();
+        const cur = wordStatsRef.current.get(key) ?? { correct: 0, wrong: 0 };
+        if (result.isCorrect) cur.correct += 1;
+        else cur.wrong += 1;
+        wordStatsRef.current.set(key, cur);
+      }
       if (round === 1) {
         setRound1((r) => ({ correct: r.correct + (result.isCorrect ? 1 : 0), total: r.total + 1 }));
       }
@@ -237,6 +230,12 @@ export default function GuidedScreen() {
     await update(
       applyAnswer({ state, question: q, userAnswer: '（不会）', result, group: state.group })
     );
+    for (const t of q.targetTerms) {
+      const key = t.toLowerCase();
+      const cur = wordStatsRef.current.get(key) ?? { correct: 0, wrong: 0 };
+      cur.wrong += 1;
+      wordStatsRef.current.set(key, cur);
+    }
     if (round === 1) {
       setRound1((r) => ({ correct: r.correct, total: r.total + 1 }));
     }
@@ -259,6 +258,16 @@ export default function GuidedScreen() {
     const closed = { ...finishSession(state), nextMode: recommended };
     await update(closed);
     setNextMode(recommended);
+
+    // 依据本次表现升级单词掌握度：全对才升级，任何一次答错都不升级
+    for (const [term, stat] of wordStatsRef.current) {
+      const w = book.words.find((x) => x.term.toLowerCase() === term);
+      if (!w) continue;
+      const mastered = stat.correct > 0 && stat.wrong === 0;
+      reviewWord(book.id, w.id, mastered ? 'good' : 'again');
+    }
+    wordStatsRef.current.clear();
+
     setPhase('done');
 
     setAdviceLoading(true);
@@ -301,7 +310,7 @@ export default function GuidedScreen() {
     // 本轮结束：简单题表现好 → 进入难题；否则进入下一组或完成
     if (round === 1) {
       const acc = round1.total > 0 ? round1.correct / round1.total : null;
-      if (mode === 'mixed' && shouldDoHardRound(acc)) {
+      if (state.nextMode === 'mixed' && shouldDoHardRound(acc)) {
         await beginHardRound();
         return;
       }
@@ -330,8 +339,6 @@ export default function GuidedScreen() {
 
   // ---------------- 开始页 ----------------
   if (phase === 'intro') {
-    const recommendedLabel =
-      state.nextMode !== 'mixed' ? NEXT_MODE_LABEL[state.nextMode] : null;
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'AI 出题' }} />
@@ -340,50 +347,20 @@ export default function GuidedScreen() {
             <Ionicons name="create" size={36} color={colors.primary} />
             <Text style={styles.heroTitle}>AI 出题</Text>
             <Text style={styles.heroDesc}>
-              展示要学的单词 → 5 词一组 → 先易后难测试 → 评估薄弱点，
-              并为下次测试生成提示词与难度建议。
+              AI 自动选词、自动出题：5 词一组，先易后难。完成后评估薄弱点、
+              升级单词掌握度，并为下次生成提示词。你只需点「开始学习」。
             </Text>
           </View>
 
-          <Text style={styles.sectionTitle}>本轮模式</Text>
-          <View style={{ gap: spacing.sm }}>
-            {MODE_OPTIONS.map((o) => {
-              const active = mode === o.key;
-              return (
-                <Pressable
-                  key={o.key}
-                  onPress={() => setMode(o.key)}
-                  style={[styles.modeCard, active && styles.modeCardActive]}
-                >
-                  <Ionicons
-                    name={o.icon}
-                    size={20}
-                    color={active ? colors.primary : colors.textMuted}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.modeTitle, active && { color: colors.primary }]}>
-                      {o.label}
-                    </Text>
-                    <Text style={styles.modeDesc}>{o.desc}</Text>
-                  </View>
-                  <Ionicons
-                    name={active ? 'radio-button-on' : 'radio-button-off'}
-                    size={20}
-                    color={active ? colors.primary : colors.textLight}
-                  />
-                </Pressable>
-              );
-            })}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>本次由 AI 自动安排</Text>
+            <Text style={styles.cardLine}>
+              出题策略：{NEXT_MODE_LABEL[state.nextMode]}（无需手动选择，AI 依据上次表现自动决定）
+            </Text>
+            <Text style={styles.cardLine}>
+              选词：到期优先 → 高频错词 → 其余；题型先易后难，表现好自动进阶。
+            </Text>
           </View>
-
-          {recommendedLabel ? (
-            <View style={styles.tipCard}>
-              <Ionicons name="trending-up" size={16} color="#92400E" />
-              <Text style={styles.tipText}>
-                上次表现建议：本次默认「{recommendedLabel}」。可手动切换上面的模式。
-              </Text>
-            </View>
-          ) : null}
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>本次学习依据</Text>
@@ -445,9 +422,9 @@ export default function GuidedScreen() {
             <Ionicons name="book" size={30} color={colors.primary} />
             <Text style={styles.heroTitle}>本组单词（{group.length} 个）</Text>
             <Text style={styles.heroDesc}>
-              {mode === 'hard'
+              {state.nextMode === 'hard'
                 ? '先浏览一遍，随后直接进入难题。'
-                : mode === 'easy'
+                : state.nextMode === 'easy'
                 ? '先记牢释义，随后只做简单题。'
                 : '先记牢释义，随后做简单题；表现好再上难题。'}
             </Text>
@@ -472,7 +449,7 @@ export default function GuidedScreen() {
           {errorMsg ? <Text style={styles.error}>{errorMsg}</Text> : null}
 
           <Button
-            label={mode === 'hard' ? '开始难题测试' : '开始本组测试'}
+            label={state.nextMode === 'hard' ? '开始难题测试' : '开始本组测试'}
             icon="play"
             onPress={() => void beginGroup()}
             style={{ alignSelf: 'stretch', marginTop: spacing.md }}
