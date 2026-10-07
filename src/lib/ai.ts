@@ -1,5 +1,6 @@
 import { StudySettings } from './studySettings';
 import { generateWithDeviceModel } from './localModel';
+import { logError, logInfo } from './log';
 
 export type GeneratedPassage = {
   title: string;
@@ -148,9 +149,16 @@ export async function completeText(
   opts?: { temperature?: number; maxTokens?: number }
 ): Promise<string> {
   if (config.provider === 'online') {
-    return chatCompletion(config.baseUrl, config.model, config.apiKey, prompt, opts);
+    logInfo('AI', '联网补全', 'model =', config.model, 'url =', config.baseUrl);
+    try {
+      return await chatCompletion(config.baseUrl, config.model, config.apiKey, prompt, opts);
+    } catch (e) {
+      logError('AI', '联网补全失败', e instanceof Error ? e.message : String(e));
+      throw e;
+    }
   }
   // 端侧模型同样遵守调用方给的生成长度/温度（之前被忽略，出题等长输出会被截断）
+  logInfo('AI', '设备端补全', 'model =', config.modelName);
   return generateWithDeviceModel(prompt, config.modelName, config.modelUrl, {
     maxTokens: opts?.maxTokens,
     temperature: opts?.temperature,

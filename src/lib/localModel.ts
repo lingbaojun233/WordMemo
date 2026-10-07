@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import type { LlamaContext } from 'llama.rn';
+import { logInfo, logWarn } from './log';
 
 // 端侧模型（llama.cpp via llama.rn）封装。
 // llama.rn 是原生库，仅 iOS/Android 可用；网页版通过动态 import + Platform 守卫，
@@ -14,13 +15,12 @@ import type { LlamaContext } from 'llama.rn';
 
 type LlamaModule = typeof import('llama.rn');
 
-// 设备端模型日志：统一前缀，便于从 Metro / logcat / Xcode 控制台抓取排查
-const TAG = 'WordMemo:localAI';
+// 设备端模型日志：统一写入应用内日志文件，可在「学习设置」中导出
 function log(...args: unknown[]): void {
-  console.log(`[${TAG}]`, ...args);
+  logInfo('localAI', ...args);
 }
 function warn(...args: unknown[]): void {
-  console.warn(`[${TAG}]`, ...args);
+  logWarn('localAI', ...args);
 }
 
 let llamaPromise: Promise<LlamaModule> | null = null;

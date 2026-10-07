@@ -6,6 +6,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -13,6 +14,7 @@ import {
 } from 'react-native';
 import { LEVEL_SAMPLES } from '../data/levelTestWords';
 import { getAiConfig, testAiConnection } from '../lib/ai';
+import { clearLog, readLog } from '../lib/log';
 import {
   deleteDeviceModel,
   DeviceModelInfo,
@@ -44,6 +46,8 @@ export default function SettingsScreen() {
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [modelMsg, setModelMsg] = useState<string | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [logMsg, setLogMsg] = useState<string | null>(null);
 
   // 每次获得焦点都重新读取，确保词汇测验后水平/词汇量刷新
   useFocusEffect(
@@ -114,6 +118,28 @@ export default function SettingsScreen() {
     await deleteDeviceModel(settings.deviceModelName);
     setModelInfo(await getDeviceModelInfo(settings.deviceModelName));
     setModelMsg(null);
+  };
+
+  const exportLog = async () => {
+    setExporting(true);
+    setLogMsg(null);
+    try {
+      const content = await readLog();
+      if (!content.trim()) {
+        setLogMsg('暂无日志内容，请先使用一次 AI 功能后再导出');
+        return;
+      }
+      await Share.share({ title: 'WordMemo 日志', message: content });
+    } catch (e) {
+      setLogMsg(`导出失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleClearLog = async () => {
+    await clearLog();
+    setLogMsg('日志已清空');
   };
 
   if (!settings) return <View style={styles.container} />;
@@ -300,6 +326,23 @@ export default function SettingsScreen() {
         <Text style={styles.helper}>
           根据测验结果，生成短文时除目标生词外，只使用该水平及以下的词汇，保证你能读懂
         </Text>
+      </View>
+
+      <Text style={styles.sectionTitle}>调试</Text>
+      <View style={styles.card}>
+        <Pressable style={styles.testConnBtn} onPress={exportLog} disabled={exporting}>
+          {exporting ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="download-outline" size={16} color={colors.primary} />
+          )}
+          <Text style={styles.testConnText}>{exporting ? '导出中…' : '导出日志文件'}</Text>
+        </Pressable>
+        <Pressable style={styles.deleteBtn} onPress={handleClearLog}>
+          <Ionicons name="trash-outline" size={14} color={colors.danger} />
+          <Text style={styles.deleteBtnText}>清空日志</Text>
+        </Pressable>
+        {logMsg ? <Text style={styles.helper}>{logMsg}</Text> : null}
       </View>
 
       {/* 模型选择弹窗 */}
