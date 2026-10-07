@@ -28,6 +28,8 @@ export type StudySettings = {
   goalType: GoalType; // 学习目标类型
   dailyGoal: number; // 每日目标（每天新学单词数）
   deadlineDays: number; // 截止目标（希望在 N 天内完成初学）
+  deadlineAt: number | null; // 绝对截止日期（制定目标时确定，之后每天自然倒计时）
+  goalConfiguredAt: number | null; // 目标制定时间（null 表示还没制定过，需要先「制定」）
 };
 
 const KEY = 'wordmemo:studySettings:v1';
@@ -50,6 +52,8 @@ export const DEFAULT_SETTINGS: StudySettings = {
   goalType: 'daily',
   dailyGoal: 20,
   deadlineDays: 30,
+  deadlineAt: null,
+  goalConfiguredAt: null,
 };
 
 export async function loadStudySettings(): Promise<StudySettings> {

@@ -1,20 +1,35 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../lib/AppContext';
 import { boxLabel, isMastered } from '../../lib/srs';
 import { colors, radius, spacing } from '../../lib/theme';
+import { loadStudySettings, saveStudySettings, StudySettings } from '../../lib/studySettings';
 import { ReviewResult } from '../../lib/types';
 import { formatDate } from '../../lib/utils';
+import { BookSelector } from '../../components/BookSelector';
 import { EmptyState } from '../../components/ui';
 
 type HistoryItem = { term: string; result: ReviewResult; box: number; at: number };
 
 export default function StatsScreen() {
   const { wordbooks } = useApp();
-  const [bookId, setBookId] = useState<string | null>(null);
+  const [settings, setSettings] = useState<StudySettings | null>(null);
 
-  const book = wordbooks.find((b) => b.id === bookId) ?? wordbooks[0] ?? null;
+  useEffect(() => {
+    loadStudySettings().then(setSettings);
+  }, []);
+
+  // 与「学习」页共用同一个「当前单词本」，两处选择方式与结果都保持一致
+  const book =
+    wordbooks.find((b) => b.id === settings?.currentBookId) ?? wordbooks[0] ?? null;
+
+  const selectBook = async (id: string) => {
+    if (!settings) return;
+    const next = { ...settings, currentBookId: id };
+    setSettings(next);
+    await saveStudySettings(next);
+  };
 
   // 选中词本的统计（不合并其它词本）
   const stats = useMemo(() => {
@@ -61,24 +76,10 @@ export default function StatsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* 选择单词本 */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.bookSwitch}
-      >
-        {wordbooks.map((b) => (
-          <Pressable
-            key={b.id}
-            style={[styles.chip, b.id === book?.id && styles.chipActive]}
-            onPress={() => setBookId(b.id)}
-          >
-            <Text style={[styles.chipText, b.id === book?.id && styles.chipTextActive]}>
-              {b.name}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      {/* 选择单词本（与学习页一致的弹窗选择方式） */}
+      <View style={styles.bookSelectorWrap}>
+        <BookSelector books={wordbooks} value={book} onChange={(id) => void selectBook(id)} />
+      </View>
 
       {stats && book ? (
         <>
@@ -148,18 +149,7 @@ function StatCard({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, paddingBottom: 40 },
-  bookSwitch: { flexDirection: 'row', gap: spacing.sm, paddingVertical: 2, marginBottom: spacing.md },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 13, color: colors.textMuted },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
+  bookSelectorWrap: { marginBottom: spacing.md },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   statCard: {
     flexBasis: '47%',

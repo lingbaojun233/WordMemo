@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   FlatList,
@@ -135,6 +135,17 @@ export default function WordbookDetailScreen() {
         ))}
       </View>
 
+      {/* 各阶段学习情况（从单词本进入） */}
+      <Pressable
+        style={({ pressed }) => [styles.progressLink, pressed && { opacity: 0.7 }]}
+        onPress={() => router.push(`/wordbook/${book.id}/progress`)}
+      >
+        <Ionicons name="stats-chart" size={18} color={colors.primary} />
+        <Text style={styles.progressLinkText}>查看各阶段学习情况</Text>
+        <Text style={styles.progressLinkCount}>{book.words.length} 词</Text>
+        <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
+      </Pressable>
+
       {/* 单词列表 */}
       {words.length === 0 ? (
         <EmptyState
@@ -202,6 +213,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginTop: spacing.md,
   },
+  progressLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  progressLinkText: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.primary },
+  progressLinkCount: { fontSize: 12, color: colors.textMuted },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
