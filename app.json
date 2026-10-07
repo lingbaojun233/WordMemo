@@ -2,7 +2,7 @@
   "expo": {
     "name": "WordMemo",
     "slug": "word-memo",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "orientation": "portrait",
     "scheme": "wordmemo",
     "icon": "./assets/icon.png",

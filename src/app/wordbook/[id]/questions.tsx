@@ -145,7 +145,7 @@ export default function GuidedScreen() {
     wordStatsRef.current.clear();
     // 先学今日未达标剩余所需的新词数，达标后则复习到期单词
     const daily = dailyPlan({ book, books: wordbooks, settings });
-    const gs = buildWordGroups(book.words, daily.remaining, settings.pickMode);
+    const gs = buildWordGroups(book.words, daily.remaining, settings.pickMode, book.id);
     if (gs.length === 0) {
       setErrorMsg(
         daily.remaining > 0 ? '今天的新词已学完，暂无新词可学' : '暂无到期单词需要复习'

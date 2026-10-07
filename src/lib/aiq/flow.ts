@@ -1,6 +1,7 @@
 import { isDue, isGraduated, isNew } from '../srs';
 import { PickMode, Word } from '../types';
 import { shuffle } from '../utils';
+import { todayNewWords } from '../dailyPool';
 import { Attempt, NextMode, QuestionType } from './types';
 
 // 「导学模式」的纯本地流程参数与决策（除 AI 出题外全部本地计算）。
@@ -63,23 +64,26 @@ export function difficultyBias(attempts: Attempt[]): number {
  * 把本次要学的单词切成 5 词一组。
  * - newWordCount > 0 且还有新词：今日未达标，先学「剩余所需」个新词（box 0）；
  * - newWordCount <= 0 或没有新词：复习到期单词。
- * 顺序按 pickMode：sequential 保持词本顺序，random 随机。
+ * 新词取自共享的「今日新词池」（todayNewWords，确定性种子），与先背诵 / AI 短文模式
+ * 同一天选到同一批词；到期复习则按 pickMode 顺序。
  */
 export function buildWordGroups(
   words: Word[],
   newWordCount: number,
   pickMode: PickMode,
+  bookId = '',
   groupSize = GROUP_SIZE
 ): Word[][] {
   const now = Date.now();
   const active = words.filter((w) => !isGraduated(w));
-  const newWords = active.filter((w) => isNew(w));
   const due = active.filter((w) => !isNew(w) && isDue(w, now));
 
-  let list: Word[];
-  if (newWordCount > 0 && newWords.length > 0) {
-    list = orderWords(newWords, pickMode).slice(0, Math.min(newWordCount, newWords.length));
-  } else {
+  let list: Word[] = [];
+  if (newWordCount > 0) {
+    // 用共享今日新词池（含确定性种子），避免 AI 出题自己随机一套词
+    list = todayNewWords(active, pickMode, newWordCount, bookId, now);
+  }
+  if (list.length === 0) {
     list = orderWords(due, pickMode);
   }
 
