@@ -60,6 +60,53 @@ function buildChoiceOptions(
   return opts.length >= 2 ? opts : undefined;
 }
 
+/**
+ * 完形填空若把多个空塞进同一道题（一篇短文多个 ____，却只给一组选项），
+ * 拆成多道「单空选择题」：每空一道、各带 4 个选项，避免多个空挤在同一选项里。
+ * 拆不出与空数一致的答案时丢弃该畸形题（返回空数组，由兜底/重试补充）。
+ */
+function splitMultiBlankCloze(
+  question: Question,
+  words: { term: string; meaning: string }[]
+): Question[] {
+  if (question.type !== 'cloze') return [question];
+  const inPassage = (question.passage ?? '').includes('____');
+  const body = inPassage ? question.passage ?? '' : question.prompt;
+  const blankCount = (body.match(/_{3,}/g) ?? []).length;
+  if (blankCount <= 1) return [question];
+
+  // 正确答案里可能把多个空的答案用分隔符连在一起，尝试拆开
+  const answers = question.correctAnswer
+    .split(/\s*[\/;；,，|]\s*|\s{2,}/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (answers.length !== blankCount) return [];
+
+  const pieces = body.split(/_{3,}/);
+  const result: Question[] = [];
+  for (let i = 0; i < blankCount; i++) {
+    // 本空保留 ____，其余空用各自正确答案回填
+    let rebuilt = '';
+    for (let j = 0; j < blankCount; j++) {
+      rebuilt += pieces[j] + (j === i ? '____' : answers[j]);
+    }
+    rebuilt += pieces[blankCount];
+
+    const ans = answers[i];
+    const opts = buildChoiceOptions(ans, words);
+    if (!opts) continue;
+    result.push({
+      ...question,
+      id: qid(),
+      passage: inPassage ? rebuilt : question.passage,
+      prompt: inPassage ? question.prompt : rebuilt,
+      correctAnswer: ans,
+      options: opts,
+    });
+  }
+  return result;
+}
+
 function difficultyHint(d: number): string {
   if (d < 0.35) return '基础（接近学习者当前水平）';
   if (d < 0.55) return '中等（略高于当前水平，i+1）';
@@ -161,8 +208,8 @@ ${injectionBlock}
 1. 难度「刚刚好超出」学习者当前水平：用已掌握词汇做背景，只考查少量新词/易错点。
 2. 若「个性化要求」指出了特定错误倾向，必须专门设计能暴露并纠正该错误的题目（这是本次出题的核心）。
 3. 每题只考查一个点，题干简洁明确；explanation 只解释本题真正考查的那个点（targetTerms 对应的词或语法），严禁顺带讲解题干中其它无关词汇的用法。
-4. 完形填空：60~120 词短文，用 ____ 表示空，并给出 4 个选项。
-5. 阅读理解：100~160 词短文 + 1 个问题 + 4 个选项。
+4. 完形填空：60~120 词短文，全篇只保留 1 个空（用 ____ 表示这唯一的空），并给出 4 个选项（只针对这一个空）。严禁在一道完形填空里放多个空；如果确实需要多个空，必须拆成多道独立的完形填空题，每道各 1 个空、各 4 个选项。
+5. 阅读理解：100~160 词短文 + 只设 1 个问题 + 4 个选项。
 6. 语法填空：单句或短句，空用 ___(原形) 表示（括号内给该词原形，例如 I ___(have) an apple. She ___(have) an apple too.），不提供选项；correctAnswer 填把空位换成正确形式后的完整句子（多个空则整段都给出）。
 7. 翻译：给出一句中文，要求译为英文；必须指定 1~2 个必用词（必须来自【本次训练单词】，写入 requiredTerms），学习者答案必须用到这些词；必须自行为本题划分给分点 rubric（每个点含 label 与 max，所有 max 之和必须恰好等于 5，且必须包含「正确使用必用词」这一点），correctAnswer 给参考译文（必须包含必用词）。
 8. correctAnswer 必须与 options 中的某一项完全一致（仅选择题；语法填空/翻译题无 options）。
@@ -245,7 +292,7 @@ ${injectionBlock}
       question.rubric = normalizeRubric(item?.rubric, question.requiredTerms);
     }
 
-    out.push(question);
+    out.push(...splitMultiBlankCloze(question, words));
     if (out.length >= actualCount) break;
   }
 
