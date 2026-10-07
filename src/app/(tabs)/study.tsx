@@ -138,14 +138,16 @@ export default function StudyTab() {
         />
       ) : null}
 
-      {/* AI 训练档案 */}
-      <Button
-        label="AI 训练档案（错题归因 / 提示词库 / A-B）"
-        icon="analytics"
-        variant="outline"
-        onPress={() => router.push('/ai-training')}
-        style={{ alignSelf: 'stretch', marginTop: spacing.md }}
-      />
+      {/* AI 训练档案（仅在 AI 出题模式显示） */}
+      {mode === 'ai_questions' ? (
+        <Button
+          label="AI 训练档案（错题归因 / 提示词库 / A-B）"
+          icon="analytics"
+          variant="outline"
+          onPress={() => router.push('/ai-training')}
+          style={{ alignSelf: 'stretch', marginTop: spacing.md }}
+        />
+      ) : null}
 
       {/* 学习设置 */}
       <Button
