@@ -63,7 +63,7 @@ export default function AiQuestionsScreen() {
   const [settings, setSettings] = useState<StudySettings | null>(null);
   const [options, setOptions] = useState<SessionOptions>({
     questionCount: 8,
-    types: ['meaning', 'cloze', 'grammar'],
+    types: [],
     order: 'weak',
     useAi: true,
   });
@@ -90,10 +90,37 @@ export default function AiQuestionsScreen() {
   const [adopted, setAdopted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [sessionStart, setSessionStart] = useState(0);
+  // 限时答题：timed 是否开启，timeSecs 每题秒数，remaining 当前题剩余秒数
+  const [timed, setTimed] = useState(false);
+  const [timeSecs, setTimeSecs] = useState(20);
+  const [remaining, setRemaining] = useState(0);
 
   useEffect(() => {
     loadStudySettings().then(setSettings);
   }, []);
+
+  // 限时倒计时：每秒递减，到 0 记为超时未掌握（超时提交放在 setTimeout 回调里异步执行）
+  useEffect(() => {
+    if (phase !== 'quiz' || !timed || feedback || grading) return;
+
+    if (remaining <= 0) {
+      const t = setTimeout(() => {
+        const cur = plan?.questions[idx];
+        if (cur && state && !feedback && !grading) {
+          const result = { isCorrect: false, errorType: 'unknown' as ErrorType, reason: '超时未作答' };
+          setPicked(null);
+          setFeedback(result);
+          void update(
+            applyAnswer({ state, question: cur, userAnswer: '（超时）', result, group: state.group })
+          );
+        }
+      }, 0);
+      return () => clearTimeout(t);
+    }
+
+    const t = setTimeout(() => setRemaining((r) => r - 1), 1000);
+    return () => clearTimeout(t);
+  }, [phase, timed, remaining, feedback, grading, plan, idx, state, update]);
 
   const layerInfo = useMemo(() => (state ? layerCounts(state.entries) : null), [state]);
 
@@ -143,6 +170,7 @@ export default function AiQuestionsScreen() {
       setAnswer('');
       setPicked(null);
       setFeedback(null);
+      setRemaining(timed ? timeSecs : 0);
       setAdvice(null);
       setAdopted(false);
       setSessionStart(Date.now());
@@ -198,6 +226,7 @@ export default function AiQuestionsScreen() {
       setAnswer('');
       setPicked(null);
       setFeedback(null);
+      setRemaining(timed ? timeSecs : 0);
       return;
     }
     // 会话结束
@@ -342,6 +371,38 @@ export default function AiQuestionsScreen() {
               color={options.useAi ? colors.primary : colors.textLight}
             />
           </Pressable>
+
+          <Pressable
+            style={styles.switchRow}
+            onPress={() => setTimed((v) => !v)}
+          >
+            <Ionicons name="timer-outline" size={18} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.switchTitle}>限时答题</Text>
+              <Text style={styles.switchDesc}>每道题倒计时，超时记为未掌握</Text>
+            </View>
+            <Ionicons
+              name={timed ? 'radio-button-on' : 'radio-button-off'}
+              size={20}
+              color={timed ? colors.primary : colors.textLight}
+            />
+          </Pressable>
+
+          {timed ? (
+            <View style={[styles.chips, { marginTop: spacing.sm }]}>
+              {[15, 20, 30].map((s) => (
+                <Pressable
+                  key={s}
+                  onPress={() => setTimeSecs(s)}
+                  style={[styles.chip, timeSecs === s && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, timeSecs === s && styles.chipTextActive]}>
+                    {s} 秒/题
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>本次训练依据</Text>
@@ -584,6 +645,24 @@ export default function AiQuestionsScreen() {
               {q.source === 'ai' ? 'AI 生成' : '本地'}
             </Text>
           </View>
+          {timed && feedback === null && !grading ? (
+            <View
+              style={[
+                styles.badge,
+                { flexDirection: 'row', alignItems: 'center', gap: 4 },
+                remaining <= 5 && { backgroundColor: '#FEE2E2' },
+              ]}
+            >
+              <Ionicons
+                name="timer-outline"
+                size={12}
+                color={remaining <= 5 ? colors.danger : colors.primaryDark}
+              />
+              <Text style={[styles.badgeText, remaining <= 5 && { color: colors.danger }]}>
+                {remaining}s
+              </Text>
+            </View>
+          ) : null}
           {plan && plan.injection.usedIds.length > 0 && q.source === 'ai' ? (
             <View style={[styles.badge, styles.badgeInjected]}>
               <Text style={styles.badgeText}>已注入提示词</Text>
