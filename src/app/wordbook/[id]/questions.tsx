@@ -747,6 +747,9 @@ export default function GuidedScreen() {
           </View>
         ) : null}
 
+        {q.requirement ? (
+          <Text style={styles.requirementText}>{q.requirement}</Text>
+        ) : null}
         <View style={styles.questionBox}>
           <Text style={styles.questionText}>{q.prompt}</Text>
         </View>
@@ -1061,6 +1064,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   passageText: { fontSize: 15, color: colors.text, lineHeight: 24 },
+  requirementText: {
+    fontSize: 14,
+    color: colors.textMuted,
+    lineHeight: 21,
+    marginTop: spacing.md,
+  },
   questionBox: { paddingVertical: spacing.md },
   questionText: { fontSize: 17, fontWeight: '700', color: colors.text, lineHeight: 26 },
   options: { gap: spacing.sm },

@@ -186,7 +186,8 @@ export default function AiQuestionsScreen() {
       setBlankAnswers([]);
       setPicked(null);
       setFeedback(null);
-      setRemaining(timed ? timeSecs : 0);
+      // 题目自带限时则优先用题目的，否则用全局设置
+      setRemaining(timed ? built.questions[0]?.timeLimit || timeSecs : 0);
       setAdvice(null);
       setAdopted(false);
       setSessionStart(Date.now());
@@ -261,7 +262,7 @@ export default function AiQuestionsScreen() {
       setBlankAnswers([]);
       setPicked(null);
       setFeedback(null);
-      setRemaining(timed ? timeSecs : 0);
+      setRemaining(timed ? plan?.questions[idx + 1]?.timeLimit || timeSecs : 0);
       return;
     }
     // 会话结束
@@ -701,6 +702,9 @@ export default function AiQuestionsScreen() {
           </View>
         ) : null}
 
+        {q.requirement ? (
+          <Text style={styles.requirementText}>{q.requirement}</Text>
+        ) : null}
         <View style={styles.questionBox}>
           <Text style={styles.questionText}>{q.prompt}</Text>
         </View>
@@ -983,6 +987,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   passageText: { fontSize: 15, color: colors.text, lineHeight: 24 },
+  requirementText: {
+    fontSize: 14,
+    color: colors.textMuted,
+    lineHeight: 21,
+    marginTop: spacing.md,
+  },
   questionBox: { paddingVertical: spacing.md },
   questionText: { fontSize: 17, fontWeight: '700', color: colors.text, lineHeight: 26 },
   options: { gap: spacing.sm },

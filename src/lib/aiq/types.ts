@@ -108,7 +108,12 @@ export type Question = {
   id: string;
   type: QuestionType;
   source: 'local' | 'ai';
-  /** 题干（选择题为提示语，填空/翻译为待作答内容，用 ____ 或 ___(原形) 表示空） */
+  /**
+   * 题目要求（如「用括号中单词的正确形式填空。」）
+   * 与题干分开存放，程序才能稳定地从题干里解析空格，避免要求文字混进空格对齐。
+   */
+  requirement?: string;
+  /** 题干（含 ____ 或 ___(原形) 空格的句子，或选择题的问句） */
   prompt: string;
   /** 短文（阅读理解/完形填空使用） */
   passage?: string;
@@ -124,6 +129,10 @@ export type Question = {
   requiredTerms?: string[];
   /** 翻译题给分点：AI 出题时自行划分，各点 max 之和为 5 */
   rubric?: ScorePoint[];
+  /** 本题限时（秒）；0 / undefined 表示不限时 */
+  timeLimit?: number;
+  /** 本题满分（可选；翻译题默认 5 分） */
+  score?: number;
   /** 难度 0~1 */
   difficulty: number;
 };
