@@ -46,15 +46,23 @@ function coerceType(v: unknown): QuestionType {
 /** 选择题题型：必须带 options，否则 UI 会退化成填空（如「完形填空没选项」） */
 const CHOICE_TYPES: QuestionType[] = ['meaning', 'derivative', 'cloze', 'reading'];
 
-/** 兜底：AI 漏给/少给选项时，用正确答案 + 训练词做干扰项，保证选择题始终有选项 */
-function buildChoiceOptions(
-  correctAnswer: string,
-  words: { term: string; meaning: string }[]
-): string[] | undefined {
+/** 兜底干扰项：常见英语词库，避免用「训练词」当干扰项（否则会泄露「正在考这些词」） */
+const GENERIC_DISTRACTORS = [
+  'make', 'take', 'give', 'have', 'say', 'see', 'look', 'go', 'come', 'know',
+  'think', 'want', 'use', 'find', 'tell', 'ask', 'work', 'feel', 'try', 'leave',
+  'call', 'need', 'become', 'mean', 'keep', 'let', 'begin', 'help', 'talk', 'turn',
+  'start', 'show', 'hear', 'play', 'run', 'move', 'like', 'live', 'hold', 'bring',
+  'happen', 'write', 'sit', 'stand', 'lose', 'pay', 'meet', 'set', 'learn', 'change',
+  'lead', 'watch', 'follow', 'stop', 'speak', 'read', 'spend', 'grow', 'open', 'walk',
+  'win', 'offer', 'remember', 'buy', 'wait', 'send', 'expect', 'build', 'stay', 'fall',
+];
+
+/** 兜底：AI 漏给/少给选项时，用正确答案 + 常见词干扰项，保证选择题始终有选项 */
+function buildChoiceOptions(correctAnswer: string): string[] | undefined {
   const correct = correctAnswer.trim();
   if (!correct) return undefined;
   const distractors = shuffle(
-    words.map((w) => w.term).filter((t) => normalize(t) !== normalize(correct))
+    GENERIC_DISTRACTORS.filter((t) => normalize(t) !== normalize(correct))
   ).slice(0, 3);
   const opts = shuffle([correct, ...distractors]);
   return opts.length >= 2 ? opts : undefined;
@@ -65,10 +73,7 @@ function buildChoiceOptions(
  * 拆成多道「单空选择题」：每空一道、各带 4 个选项，避免多个空挤在同一选项里。
  * 拆不出与空数一致的答案时丢弃该畸形题（返回空数组，由兜底/重试补充）。
  */
-function splitMultiBlankCloze(
-  question: Question,
-  words: { term: string; meaning: string }[]
-): Question[] {
+function splitMultiBlankCloze(question: Question): Question[] {
   if (question.type !== 'cloze') return [question];
   const inPassage = (question.passage ?? '').includes('____');
   const body = inPassage ? question.passage ?? '' : question.prompt;
@@ -93,7 +98,7 @@ function splitMultiBlankCloze(
     rebuilt += pieces[blankCount];
 
     const ans = answers[i];
-    const opts = buildChoiceOptions(ans, words);
+    const opts = buildChoiceOptions(ans);
     if (!opts) continue;
     result.push({
       ...question,
@@ -212,7 +217,7 @@ ${injectionBlock}
 5. 阅读理解：100~160 词短文 + 只设 1 个问题 + 4 个选项。
 6. 语法填空：单句或短句，空用 ___(原形) 表示（括号内给该词原形，例如 I ___(have) an apple. She ___(have) an apple too.），不提供选项；correctAnswer 填把空位换成正确形式后的完整句子（多个空则整段都给出）。
 7. 翻译：给出一句中文，要求译为英文；必须指定 1~2 个必用词（必须来自【本次训练单词】，写入 requiredTerms），学习者答案必须用到这些词；必须自行为本题划分给分点 rubric（每个点含 label 与 max，所有 max 之和必须恰好等于 5，且必须包含「正确使用必用词」这一点），correctAnswer 给参考译文（必须包含必用词）。
-8. correctAnswer 必须与 options 中的某一项完全一致（仅选择题；语法填空/翻译题无 options）。
+8. 选择题的 4 个选项必须是同一词性、语义相近或易混淆的词/短语；严禁把【本次训练单词】里的词直接当作干扰项（那样会泄露答案），干扰项应来自学习者已掌握词汇的自然语境。correctAnswer 必须与 options 中的某一项完全一致（仅选择题；语法填空/翻译题无 options）。
 9. targetTerms 填该题实际考查的单词（小写，来自上面的训练单词）。
 10. 必须围绕【本次训练单词】出题；下面的示例仅供 JSON 格式参考，严禁照抄示例内容（不要出现 have / apple 等与训练单词无关的内容）。
 
@@ -243,7 +248,7 @@ ${injectionBlock}
       parsedOptions.length >= 2
         ? parsedOptions
         : CHOICE_TYPES.includes(type)
-        ? buildChoiceOptions(correctAnswer, words) ?? []
+        ? buildChoiceOptions(correctAnswer) ?? []
         : [];
 
     const rawTargets = Array.isArray(item?.targetTerms)
@@ -292,7 +297,7 @@ ${injectionBlock}
       question.rubric = normalizeRubric(item?.rubric, question.requiredTerms);
     }
 
-    out.push(...splitMultiBlankCloze(question, words));
+    out.push(...splitMultiBlankCloze(question));
     if (out.length >= actualCount) break;
   }
 

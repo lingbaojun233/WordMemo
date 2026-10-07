@@ -712,6 +712,7 @@ export default function GuidedScreen() {
   const isRoundLabel = round === 1 ? '第 1 轮 · 简单题' : '第 2 轮 · 难题';
   const blanks = extractBlanks(q.prompt, q.correctAnswer);
   const multiBlank = (blanks?.length ?? 0) >= 2;
+  const isTranslation = q.type === 'translation';
 
   return (
     <View style={styles.container}>
@@ -888,7 +889,13 @@ export default function GuidedScreen() {
                 }
               />
               <Text style={styles.feedbackTitle}>
-                {feedback.isCorrect
+                {isTranslation && typeof feedback.score === 'number'
+                  ? feedback.score >= (feedback.maxScore ?? 5)
+                    ? `回答完美 · ${feedback.score}/${feedback.maxScore ?? 5} 分`
+                    : feedback.score >= 3
+                    ? `基本正确 · ${feedback.score}/${feedback.maxScore ?? 5} 分`
+                    : `错误较多 · ${feedback.score}/${feedback.maxScore ?? 5} 分`
+                  : feedback.isCorrect
                   ? '回答正确'
                   : feedback.errorType === 'unknown'
                   ? '已记为未掌握'
@@ -896,7 +903,31 @@ export default function GuidedScreen() {
               </Text>
             </View>
 
-            {!feedback.isCorrect ? (
+            {isTranslation && feedback.breakdown && feedback.breakdown.length > 0 ? (
+              <View style={styles.breakdownBox}>
+                {feedback.breakdown.map((b) => (
+                  <View key={b.label} style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>{b.label}</Text>
+                    <Text style={styles.breakdownScore}>
+                      {b.got}/{b.max} 分
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {isTranslation ? (
+              <>
+                <Text style={styles.feedbackLine}>
+                  参考译文：<Text style={styles.bold}>{q.correctAnswer}</Text>
+                </Text>
+                {feedback.errorType && feedback.errorType !== 'unknown' ? (
+                  <Text style={styles.feedbackLine}>
+                    错误归因：<Text style={styles.bold}>{ERROR_TYPE_LABEL[feedback.errorType]}</Text>
+                  </Text>
+                ) : null}
+              </>
+            ) : !feedback.isCorrect ? (
               <>
                 <Text style={styles.feedbackLine}>
                   正确答案：<Text style={styles.bold}>{q.correctAnswer}</Text>
@@ -907,11 +938,10 @@ export default function GuidedScreen() {
                     <Text style={styles.bold}>{ERROR_TYPE_LABEL[feedback.errorType]}</Text>
                   </Text>
                 ) : null}
-                {feedback.reason ? (
-                  <Text style={styles.feedbackLine}>{feedback.reason}</Text>
-                ) : null}
               </>
             ) : null}
+
+            {feedback.reason ? <Text style={styles.feedbackLine}>{feedback.reason}</Text> : null}
 
             {q.explanation ? <Text style={styles.feedbackLine}>{q.explanation}</Text> : null}
 
@@ -1058,6 +1088,20 @@ const styles = StyleSheet.create({
   feedbackTitle: { fontSize: 15, fontWeight: '800', color: colors.text },
   feedbackLine: { fontSize: 14, color: colors.textMuted, lineHeight: 21 },
   bold: { fontWeight: '800', color: colors.text },
+  breakdownBox: {
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginVertical: spacing.xs,
+    gap: 4,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  breakdownLabel: { fontSize: 13, color: colors.text, flex: 1, marginRight: spacing.sm },
+  breakdownScore: { fontSize: 13, fontWeight: '800', color: colors.text },
   summaryRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   summaryItem: {
     flex: 1,
