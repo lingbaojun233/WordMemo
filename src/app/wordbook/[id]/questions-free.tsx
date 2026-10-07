@@ -323,8 +323,8 @@ export default function AiQuestionsScreen() {
             <Ionicons name="create" size={36} color={colors.primary} />
             <Text style={styles.heroTitle}>自由出题 · 自定义题型</Text>
             <Text style={styles.heroDesc}>
-              按你的词汇水平出「刚刚好超出一点」的题，答错后 AI 归因原因，
-              采纳建议后写入分层提示词库，下次针对性出题。
+              按你的词汇水平出「刚刚好超出一点」的题，答错后 AI 分析错因，
+              采纳建议后用于针对性出题。
             </Text>
           </View>
 
@@ -447,11 +447,11 @@ export default function AiQuestionsScreen() {
             <Text style={styles.cardLine}>单词本：{book.words.length} 词</Text>
             {layerInfo ? (
               <Text style={styles.cardLine}>
-                提示词库：核心 {layerInfo.core} · 近期 {layerInfo.recent} · 临时 {layerInfo.temp}
+                薄弱点：长期 {layerInfo.core} · 近期 {layerInfo.recent} · 本次 {layerInfo.temp}
               </Text>
             ) : null}
             <Text style={styles.cardLine}>
-              错题记录：{state.attempts.length} 条 · A/B 分组：{state.group === 'A' ? 'A 组（采纳建议）' : 'B 组（常规复习）'}
+              错题记录：{state.attempts.length} 条
             </Text>
           </View>
 
@@ -519,7 +519,7 @@ export default function AiQuestionsScreen() {
 
           {stats.length > 0 ? (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>错误归因</Text>
+              <Text style={styles.cardTitle}>错因分析</Text>
               {stats.map((s) => (
                 <View key={s.type} style={styles.statRow}>
                   <Text style={styles.statLabel}>{s.label}</Text>
@@ -541,7 +541,7 @@ export default function AiQuestionsScreen() {
                 <Text style={styles.adviceTitle}>{advice.title}</Text>
                 <Text style={styles.adviceDetail}>{advice.detail}</Text>
                 <View style={styles.promptBox}>
-                  <Text style={styles.promptLabel}>采纳后写入提示词库：</Text>
+                  <Text style={styles.promptLabel}>采纳后用于下次出题：</Text>
                   <Text style={styles.promptText}>{advice.promptText}</Text>
                 </View>
                 {adopted ? (
@@ -690,7 +690,7 @@ export default function AiQuestionsScreen() {
           ) : null}
           {plan && plan.injection.usedIds.length > 0 && q.source === 'ai' ? (
             <View style={[styles.badge, styles.badgeInjected]}>
-              <Text style={styles.badgeText}>已注入提示词</Text>
+              <Text style={styles.badgeText}>个性化出题</Text>
             </View>
           ) : null}
         </View>
@@ -815,7 +815,7 @@ export default function AiQuestionsScreen() {
           <View style={styles.gradingRow}>
             <ActivityIndicator color={colors.primary} />
             <Text style={styles.cardLine}>
-              {q.options ? 'AI 正在归因错误原因…' : 'AI 正在判分…'}
+              {q.options ? 'AI 正在分析错因…' : 'AI 正在判分…'}
             </Text>
           </View>
         ) : null}
@@ -855,7 +855,7 @@ export default function AiQuestionsScreen() {
                 </Text>
                 {feedback.errorType && feedback.errorType !== 'unknown' ? (
                   <Text style={styles.feedbackLine}>
-                    错误归因：<Text style={styles.bold}>{ERROR_TYPE_LABEL[feedback.errorType]}</Text>
+                    错因：<Text style={styles.bold}>{ERROR_TYPE_LABEL[feedback.errorType]}</Text>
                   </Text>
                 ) : null}
               </>
@@ -866,7 +866,7 @@ export default function AiQuestionsScreen() {
                 </Text>
                 {feedback.errorType ? (
                   <Text style={styles.feedbackLine}>
-                    {feedback.errorType === 'unknown' ? '记录为：' : '错误归因：'}
+                    {feedback.errorType === 'unknown' ? '记录为：' : '错因：'}
                     <Text style={styles.bold}>{ERROR_TYPE_LABEL[feedback.errorType]}</Text>
                   </Text>
                 ) : null}

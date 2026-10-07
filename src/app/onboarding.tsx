@@ -32,7 +32,7 @@ const MODES: {
     key: 'ai_questions',
     icon: 'create',
     title: 'AI 出题，学习后答题',
-    desc: 'AI 按你的薄弱点针对性出题，答错自动归因并生成改进建议',
+    desc: 'AI 按你的薄弱点针对性出题，答错自动分析原因并生成改进建议',
     enabled: true,
   },
 ];

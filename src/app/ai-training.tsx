@@ -103,17 +103,14 @@ export default function AiTrainingScreen() {
             </View>
           </View>
           <Text style={styles.line}>
-            A/B 分组：{state.group === 'A' ? 'A 组（采纳 AI 建议）' : 'B 组（常规复习）'}
-          </Text>
-          <Text style={styles.line}>
-            提示词库：核心 {counts?.core ?? 0} · 近期 {counts?.recent ?? 0} · 临时 {counts?.temp ?? 0}
+            已记录的薄弱点：长期 {counts?.core ?? 0} · 近期 {counts?.recent ?? 0} · 本次 {counts?.temp ?? 0}
             （已采纳建议 {adopted}）
           </Text>
           <Text style={styles.line}>数据全部保存在本机，不上传</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>错误归因分布</Text>
+          <Text style={styles.cardTitle}>错因分布</Text>
           {stats.length === 0 ? (
             <Text style={styles.line}>暂无数据，先去做一轮 AI 出题吧</Text>
           ) : (
@@ -151,9 +148,9 @@ export default function AiTrainingScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>分层提示词库</Text>
+          <Text style={styles.cardTitle}>我的薄弱点</Text>
           <Text style={styles.line}>
-            核心层每次必注入；近期层为最近 3 天错误；临时层仅当前会话生效。
+            长期薄弱点每次都会重点练习；近期易错点只保留最近 3 天；本次错题仅本次会话生效。
           </Text>
           {LAYER_ORDER.map((layer) => {
             const items = state.entries.filter((e) => e.layer === layer);
@@ -169,7 +166,7 @@ export default function AiTrainingScreen() {
                     <View key={e.id} style={styles.entry}>
                       <Text style={styles.entryText}>{e.text}</Text>
                       <Text style={styles.entryMeta}>
-                        注入 {e.hitCount} 次 · 采纳后 对 {e.correctAfter} / 错 {e.wrongAfter}
+                        已练习 {e.hitCount} 次 · 采纳后 答对 {e.correctAfter} / 答错 {e.wrongAfter}
                       </Text>
                     </View>
                   ))
@@ -195,7 +192,7 @@ export default function AiTrainingScreen() {
                   ) : null}
                 </View>
                 <Text style={styles.line}>{a.detail}</Text>
-                <Text style={styles.promptText}>提示词：{a.promptText}</Text>
+                <Text style={styles.promptText}>下次重点练：{a.promptText}</Text>
                 {!a.adopted ? (
                   <Button
                     label="采纳"
@@ -212,17 +209,17 @@ export default function AiTrainingScreen() {
 
         {ab ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>A/B 验证（采纳建议 vs 常规）</Text>
+            <Text style={styles.cardTitle}>学习效果对比（个性化训练 vs 常规复习）</Text>
             <Text style={styles.line}>
-              实验组（已被建议覆盖）：{ab.treatment.attempts} 题，错误率{' '}
+              个性化训练：{ab.treatment.attempts} 题，错误率{' '}
               {Math.round(ab.treatment.errorRate * 100)}%
             </Text>
             <Text style={styles.line}>
-              对照组（未被覆盖）：{ab.control.attempts} 题，错误率{' '}
+              常规复习：{ab.control.attempts} 题，错误率{' '}
               {Math.round(ab.control.errorRate * 100)}%
             </Text>
             <View style={styles.divider} />
-            <Text style={styles.line}>同一批知识点采纳前后对比：</Text>
+            <Text style={styles.line}>同一批单词采纳建议前后对比：</Text>
             <Text style={styles.line}>
               采纳前：{ab.before.attempts} 题，错误率 {Math.round(ab.before.errorRate * 100)}%
             </Text>
@@ -249,8 +246,7 @@ export default function AiTrainingScreen() {
         {showBackup ? (
           <View style={styles.card}>
             <Text style={styles.line}>
-              导出的备份会用你设置的密码加密（SHA-256 派生密钥流 + 完整性校验），
-              不包含账号密码等敏感信息。
+              导出的备份会用你设置的密码加密，不包含账号密码等敏感信息。
             </Text>
             <TextInput
               style={styles.input}

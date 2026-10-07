@@ -96,9 +96,9 @@ export const NEXT_MODE_LABEL: Record<NextMode, string> = {
 export type PromptLayer = 'core' | 'recent' | 'temp';
 
 export const PROMPT_LAYER_LABEL: Record<PromptLayer, string> = {
-  core: '核心层（长期薄弱点）',
-  recent: '近期层（最近 3 天错误）',
-  temp: '临时层（本次会话错误）',
+  core: '长期薄弱点',
+  recent: '近期易错点',
+  temp: '本次错题',
 };
 
 /** A/B 实验分组：A=采纳 AI 建议组，B=常规复习组 */

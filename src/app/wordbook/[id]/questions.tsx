@@ -458,7 +458,7 @@ export default function GuidedScreen() {
             </Text>
             <Text style={styles.cardLine}>单词本：{book.words.length} 词（每 5 词一组，先易后难）</Text>
             <Text style={styles.cardLine}>
-              提示词库：核心 {layerInfo.core} · 近期 {layerInfo.recent} · 临时 {layerInfo.temp}
+              薄弱点：长期 {layerInfo.core} · 近期 {layerInfo.recent} · 本次 {layerInfo.temp}
             </Text>
             <Text style={styles.cardLine}>错题记录：{state.attempts.length} 条</Text>
           </View>
@@ -612,7 +612,7 @@ export default function GuidedScreen() {
 
           {stats.length > 0 ? (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>薄弱点 · 错误归因</Text>
+              <Text style={styles.cardTitle}>薄弱点 · 错因分析</Text>
               {stats.map((s) => (
                 <View key={s.type} style={styles.statRow}>
                   <Text style={styles.statLabel}>{s.label}</Text>
@@ -654,7 +654,7 @@ export default function GuidedScreen() {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>AI 学习建议（写入提示词库）</Text>
+            <Text style={styles.cardTitle}>AI 学习建议</Text>
             {adviceLoading ? (
               <View style={styles.adviceLoading}>
                 <ActivityIndicator color={colors.primary} />
@@ -665,13 +665,13 @@ export default function GuidedScreen() {
                 <Text style={styles.adviceTitle}>{advice.title}</Text>
                 <Text style={styles.adviceDetail}>{advice.detail}</Text>
                 <View style={styles.promptBox}>
-                  <Text style={styles.promptLabel}>下次出题将注入：</Text>
+                  <Text style={styles.promptLabel}>下次会重点练：</Text>
                   <Text style={styles.promptText}>{advice.promptText}</Text>
                 </View>
                 {adopted ? (
                   <View style={styles.adoptedRow}>
                     <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-                    <Text style={styles.adoptedText}>已写入提示词库，下次针对性出题</Text>
+                    <Text style={styles.adoptedText}>已记入薄弱点，下次针对性练习</Text>
                   </View>
                 ) : (
                   <Button
@@ -848,7 +848,7 @@ export default function GuidedScreen() {
         {grading ? (
           <View style={styles.gradingRow}>
             <ActivityIndicator color={colors.primary} />
-            <Text style={styles.cardLine}>{q.options ? '正在归因错误…' : '正在判分…'}</Text>
+            <Text style={styles.cardLine}>{q.options ? '正在分析错因…' : '正在判分…'}</Text>
           </View>
         ) : null}
 
@@ -923,7 +923,7 @@ export default function GuidedScreen() {
                 </Text>
                 {feedback.errorType && feedback.errorType !== 'unknown' ? (
                   <Text style={styles.feedbackLine}>
-                    错误归因：<Text style={styles.bold}>{ERROR_TYPE_LABEL[feedback.errorType]}</Text>
+                    错因：<Text style={styles.bold}>{ERROR_TYPE_LABEL[feedback.errorType]}</Text>
                   </Text>
                 ) : null}
               </>
@@ -934,7 +934,7 @@ export default function GuidedScreen() {
                 </Text>
                 {feedback.errorType ? (
                   <Text style={styles.feedbackLine}>
-                    {feedback.errorType === 'unknown' ? '记录为：' : '错误归因：'}
+                    {feedback.errorType === 'unknown' ? '记录为：' : '错因：'}
                     <Text style={styles.bold}>{ERROR_TYPE_LABEL[feedback.errorType]}</Text>
                   </Text>
                 ) : null}
