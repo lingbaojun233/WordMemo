@@ -46,6 +46,33 @@ export const AI_ERROR_TYPES: ErrorType[] = [
   'other',
 ];
 
+/** 翻译题给分点：AI 出题时自行划分，避免判分时全盘否认用户答案 */
+export type ScorePoint = {
+  /** 给分点描述，如「正确使用必用词 have」 */
+  label: string;
+  /** 该点满分 */
+  max: number;
+};
+
+/** 单个给分点的得分明细 */
+export type ScoreBreakdown = {
+  label: string;
+  got: number;
+  max: number;
+};
+
+/** 批改结果：选择题/语法填空为对错；翻译题为 0~5 评分 + 给分点明细 */
+export type GradeResult = {
+  isCorrect: boolean;
+  errorType?: ErrorType;
+  reason?: string;
+  /** 翻译题 0~5 评分（非翻译题为 undefined） */
+  score?: number;
+  maxScore?: number;
+  /** 翻译题各给分点得分明细 */
+  breakdown?: ScoreBreakdown[];
+};
+
 export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
   meaning: '选释义',
   spelling: '拼写填空',
@@ -72,7 +99,7 @@ export type Question = {
   id: string;
   type: QuestionType;
   source: 'local' | 'ai';
-  /** 题干（选择题为提示语，填空/翻译为待作答内容，用 ____ 表示空） */
+  /** 题干（选择题为提示语，填空/翻译为待作答内容，用 ____ 或 ___(原形) 表示空） */
   prompt: string;
   /** 短文（阅读理解/完形填空使用） */
   passage?: string;
@@ -84,6 +111,10 @@ export type Question = {
   explanation?: string;
   /** 关联的目标单词（小写） */
   targetTerms: string[];
+  /** 翻译题必用词汇：学习者答案必须用到这些词（小写，来自目标单词） */
+  requiredTerms?: string[];
+  /** 翻译题给分点：AI 出题时自行划分，各点 max 之和为 5 */
+  rubric?: ScorePoint[];
   /** 难度 0~1 */
   difficulty: number;
 };
@@ -102,6 +133,11 @@ export type Attempt = {
   /** AI 错误归因（仅答错时才有） */
   errorType?: ErrorType;
   errorReason?: string;
+  /** 翻译题 0~5 评分（非翻译题为 undefined） */
+  score?: number;
+  maxScore?: number;
+  /** 翻译题各给分点得分明细 */
+  breakdown?: ScoreBreakdown[];
   group: AbGroup;
 };
 

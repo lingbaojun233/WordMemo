@@ -18,7 +18,7 @@ import {
   AiqState,
   Attempt,
   ERROR_TYPE_LABEL,
-  ErrorType,
+  GradeResult,
   Question,
   QuestionType,
 } from './types';
@@ -150,13 +150,7 @@ function applyOrder(
   return list.sort((a, b) => (orderIndex.get(a.type) ?? 99) - (orderIndex.get(b.type) ?? 99));
 }
 
-export type GradeResult = {
-  isCorrect: boolean;
-  errorType?: ErrorType;
-  reason?: string;
-};
-
-/** 批改：选择题本地即时判分（<50ms），翻译题走 AI 判分 + 归因，答错时 AI 归因 */
+/** 批改：选择题本地即时判分（<50ms），翻译题按给分点打 0~5 分，语法填空 AI 判对错，答错时 AI 归因 */
 export async function gradeAnswer(params: {
   config: AiConfig;
   question: Question;
@@ -212,6 +206,9 @@ export function applyAnswer(params: {
     isCorrect: result.isCorrect,
     errorType: result.isCorrect ? undefined : result.errorType ?? 'other',
     errorReason: result.isCorrect ? undefined : result.reason,
+    score: result.score,
+    maxScore: result.maxScore,
+    breakdown: result.breakdown,
     group,
   };
 

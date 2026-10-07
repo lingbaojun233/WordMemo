@@ -78,6 +78,9 @@ export default function AiQuestionsScreen() {
     isCorrect: boolean;
     errorType?: ErrorType;
     reason?: string;
+    score?: number;
+    maxScore?: number;
+    breakdown?: { label: string; got: number; max: number }[];
   } | null>(null);
 
   const [advice, setAdvice] = useState<
@@ -499,6 +502,65 @@ export default function AiQuestionsScreen() {
   if (!q) return null;
   const progress = total > 0 ? (idx + 1) / total : 0;
   const isWrong = feedback !== null && !feedback.isCorrect;
+  const isTranslation = q.type === 'translation';
+  const fb = feedback
+    ? (() => {
+        if (feedback.errorType === 'unknown') {
+          return {
+            icon: 'help-circle' as const,
+            color: colors.warning,
+            bg: '#FFFBEB',
+            border: '#FDE68A',
+            title: '已记为未掌握',
+          };
+        }
+        if (isTranslation && typeof feedback.score === 'number') {
+          const s = feedback.score;
+          const m = feedback.maxScore ?? 5;
+          if (s >= m) {
+            return {
+              icon: 'checkmark-circle' as const,
+              color: colors.success,
+              bg: '#F0FDF4',
+              border: '#A7F3D0',
+              title: `回答完美 · ${s}/${m} 分`,
+            };
+          }
+          if (s >= 3) {
+            return {
+              icon: 'checkmark-circle' as const,
+              color: colors.warning,
+              bg: '#FFFBEB',
+              border: '#FDE68A',
+              title: `基本正确 · ${s}/${m} 分`,
+            };
+          }
+          return {
+            icon: 'close-circle' as const,
+            color: colors.danger,
+            bg: '#FEF2F2',
+            border: '#FECACA',
+            title: `错误较多 · ${s}/${m} 分`,
+          };
+        }
+        if (feedback.isCorrect) {
+          return {
+            icon: 'checkmark-circle' as const,
+            color: colors.success,
+            bg: '#F0FDF4',
+            border: '#A7F3D0',
+            title: '回答正确',
+          };
+        }
+        return {
+          icon: 'close-circle' as const,
+          color: colors.danger,
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          title: '回答错误',
+        };
+      })()
+    : null;
 
   return (
     <View style={styles.container}>
@@ -567,9 +629,20 @@ export default function AiQuestionsScreen() {
           </View>
         ) : (
           <>
+            {isTranslation && q.requiredTerms && q.requiredTerms.length > 0 ? (
+              <Text style={styles.requiredTerms}>
+                必用词：<Text style={styles.requiredTerm}>{q.requiredTerms.join('、')}</Text>
+              </Text>
+            ) : null}
             <TextInput
               style={styles.input}
-              placeholder={q.type === 'translation' ? '输入你的英文翻译' : '输入答案'}
+              placeholder={
+                q.type === 'translation'
+                  ? '输入你的英文翻译（必须用到必用词）'
+                  : q.type === 'grammar'
+                  ? '填入正确形式（可填整句）'
+                  : '输入答案'
+              }
               placeholderTextColor={colors.textLight}
               value={answer}
               onChangeText={setAnswer}
@@ -608,52 +681,46 @@ export default function AiQuestionsScreen() {
           </View>
         ) : null}
 
-        {feedback ? (
+        {feedback && fb ? (
           <View
             style={[
               styles.feedbackBox,
               {
-                borderColor: feedback.isCorrect
-                  ? '#A7F3D0'
-                  : feedback.errorType === 'unknown'
-                  ? '#FDE68A'
-                  : '#FECACA',
-                backgroundColor: feedback.isCorrect
-                  ? '#F0FDF4'
-                  : feedback.errorType === 'unknown'
-                  ? '#FFFBEB'
-                  : '#FEF2F2',
+                borderColor: fb.border,
+                backgroundColor: fb.bg,
               },
             ]}
           >
             <View style={styles.feedbackHead}>
-              <Ionicons
-                name={
-                  feedback.isCorrect
-                    ? 'checkmark-circle'
-                    : feedback.errorType === 'unknown'
-                    ? 'help-circle'
-                    : 'close-circle'
-                }
-                size={20}
-                color={
-                  feedback.isCorrect
-                    ? colors.success
-                    : feedback.errorType === 'unknown'
-                    ? colors.warning
-                    : colors.danger
-                }
-              />
-              <Text style={styles.feedbackTitle}>
-                {feedback.isCorrect
-                  ? '回答正确'
-                  : feedback.errorType === 'unknown'
-                  ? '已记为未掌握'
-                  : '回答错误'}
-              </Text>
+              <Ionicons name={fb.icon} size={20} color={fb.color} />
+              <Text style={styles.feedbackTitle}>{fb.title}</Text>
             </View>
 
-            {!feedback.isCorrect ? (
+            {isTranslation && feedback.breakdown && feedback.breakdown.length > 0 ? (
+              <View style={styles.breakdownBox}>
+                {feedback.breakdown.map((b) => (
+                  <View key={b.label} style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>{b.label}</Text>
+                    <Text style={styles.breakdownScore}>
+                      {b.got}/{b.max} 分
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {isTranslation ? (
+              <>
+                <Text style={styles.feedbackLine}>
+                  参考译文：<Text style={styles.bold}>{q.correctAnswer}</Text>
+                </Text>
+                {feedback.errorType && feedback.errorType !== 'unknown' ? (
+                  <Text style={styles.feedbackLine}>
+                    错误归因：<Text style={styles.bold}>{ERROR_TYPE_LABEL[feedback.errorType]}</Text>
+                  </Text>
+                ) : null}
+              </>
+            ) : !feedback.isCorrect ? (
               <>
                 <Text style={styles.feedbackLine}>
                   正确答案：<Text style={styles.bold}>{q.correctAnswer}</Text>
@@ -664,11 +731,10 @@ export default function AiQuestionsScreen() {
                     <Text style={styles.bold}>{ERROR_TYPE_LABEL[feedback.errorType]}</Text>
                   </Text>
                 ) : null}
-                {feedback.reason ? (
-                  <Text style={styles.feedbackLine}>{feedback.reason}</Text>
-                ) : null}
               </>
             ) : null}
+
+            {feedback.reason ? <Text style={styles.feedbackLine}>{feedback.reason}</Text> : null}
 
             {q.explanation ? <Text style={styles.feedbackLine}>{q.explanation}</Text> : null}
 
@@ -804,6 +870,22 @@ const styles = StyleSheet.create({
   feedbackTitle: { fontSize: 15, fontWeight: '800', color: colors.text },
   feedbackLine: { fontSize: 14, color: colors.textMuted, lineHeight: 21 },
   bold: { fontWeight: '800', color: colors.text },
+  requiredTerms: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.sm },
+  requiredTerm: { fontWeight: '800', color: colors.primary },
+  breakdownBox: {
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginVertical: spacing.xs,
+    gap: 4,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  breakdownLabel: { fontSize: 13, color: colors.text, flex: 1, marginRight: spacing.sm },
+  breakdownScore: { fontSize: 13, fontWeight: '800', color: colors.text },
   summaryRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   summaryItem: {
     flex: 1,
