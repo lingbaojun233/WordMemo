@@ -1,10 +1,10 @@
 import React from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   StyleSheet,
   Text,
   TextStyle,
+  TouchableOpacity,
   View,
   ViewStyle,
 } from 'react-native';
@@ -52,13 +52,13 @@ export function Button({
   const stretchText = textStyle?.textAlign === 'left' || textStyle?.textAlign === 'right';
 
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
-      hitSlop={4}
-      style={({ pressed }) => [
+      activeOpacity={0.7}
+      style={[
         styles.btn,
-        { backgroundColor: bg, opacity: pressed ? 0.85 : 1 },
+        { backgroundColor: bg },
         border,
         disabled && { opacity: 0.5 },
         style,
@@ -67,28 +67,33 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={fg} />
       ) : (
-        <>
+        <View style={styles.content}>
           {icon ? <Ionicons name={icon} size={18} color={fg} /> : null}
           <Text
             style={[styles.label, { color: fg }, stretchText && { flex: 1 }, textStyle]}
           >
             {label}
           </Text>
-        </>
+        </View>
       )}
-    </Pressable>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   btn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: radius.md,
+  },
+  content: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    borderRadius: radius.md,
+    alignSelf: 'stretch',
   },
   label: {
     fontSize: 16,
