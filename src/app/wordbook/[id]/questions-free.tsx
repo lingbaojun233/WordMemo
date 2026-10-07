@@ -36,6 +36,7 @@ import {
   Question,
   QuestionType,
 } from '../../../lib/aiq/types';
+import { extractBlanks, gradeBlanks } from '../../../lib/aiq/blanks';
 
 type Phase = 'intro' | 'loading' | 'quiz' | 'done';
 
@@ -72,6 +73,7 @@ export default function AiQuestionsScreen() {
   const [plan, setPlan] = useState<SessionPlan | null>(null);
   const [idx, setIdx] = useState(0);
   const [answer, setAnswer] = useState('');
+  const [blankAnswers, setBlankAnswers] = useState<string[]>([]);
   const [picked, setPicked] = useState<string | null>(null);
   const [grading, setGrading] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -168,6 +170,7 @@ export default function AiQuestionsScreen() {
       setPlan(built);
       setIdx(0);
       setAnswer('');
+      setBlankAnswers([]);
       setPicked(null);
       setFeedback(null);
       setRemaining(timed ? timeSecs : 0);
@@ -203,6 +206,24 @@ export default function AiQuestionsScreen() {
     }
   };
 
+  /** 多空格语法填空：本地逐空判对错（毫秒级，不调 AI） */
+  const submitBlanks = async () => {
+    if (!q || grading || feedback) return;
+    const blanks = extractBlanks(q.prompt, q.correctAnswer);
+    if (!blanks || blanks.length < 2) return;
+    const result = gradeBlanks(blanks, blankAnswers);
+    setFeedback(result);
+    await update(
+      applyAnswer({
+        state,
+        question: q,
+        userAnswer: blankAnswers.join(' / '),
+        result,
+        group: state.group,
+      })
+    );
+  };
+
   /** 主动选「不会」：记为未掌握，不做 AI 归因（避免乱填带偏错因分析） */
   const submitUnknown = async () => {
     if (!q || grading || feedback) return;
@@ -224,6 +245,7 @@ export default function AiQuestionsScreen() {
     if (idx + 1 < total) {
       setIdx(idx + 1);
       setAnswer('');
+      setBlankAnswers([]);
       setPicked(null);
       setFeedback(null);
       setRemaining(timed ? timeSecs : 0);
@@ -552,6 +574,8 @@ export default function AiQuestionsScreen() {
   const progress = total > 0 ? (idx + 1) / total : 0;
   const isWrong = feedback !== null && !feedback.isCorrect;
   const isTranslation = q.type === 'translation';
+  const blanks = extractBlanks(q.prompt, q.correctAnswer);
+  const multiBlank = (blanks?.length ?? 0) >= 2;
   const fb = feedback
     ? (() => {
         if (feedback.errorType === 'unknown') {
@@ -694,6 +718,41 @@ export default function AiQuestionsScreen() {
               );
             })}
           </View>
+        ) : multiBlank && blanks ? (
+          <>
+            {blanks.map((b, i) => (
+              <View key={i}>
+                <Text style={styles.blankLabel}>
+                  第 {i + 1} 空{b.base ? `（${b.base}）` : ''}
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="填入正确形式"
+                  placeholderTextColor={colors.textLight}
+                  value={blankAnswers[i] ?? ''}
+                  onChangeText={(t) =>
+                    setBlankAnswers((arr) => {
+                      const next = [...arr];
+                      next[i] = t;
+                      return next;
+                    })
+                  }
+                  editable={feedback === null && !grading}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+            ))}
+            {feedback === null ? (
+              <Button
+                label="提交"
+                icon="checkmark"
+                disabled={blanks.some((_, i) => !(blankAnswers[i] ?? '').trim())}
+                onPress={() => void submitBlanks()}
+                style={{ alignSelf: 'stretch' }}
+              />
+            ) : null}
+          </>
         ) : (
           <>
             {isTranslation && q.requiredTerms && q.requiredTerms.length > 0 ? (
@@ -914,6 +973,7 @@ const styles = StyleSheet.create({
   questionBox: { paddingVertical: spacing.md },
   questionText: { fontSize: 17, fontWeight: '700', color: colors.text, lineHeight: 26 },
   options: { gap: spacing.sm },
+  blankLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginTop: spacing.sm, marginBottom: 4 },
   input: {
     backgroundColor: colors.card,
     borderWidth: 1,
