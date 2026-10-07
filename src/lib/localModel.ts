@@ -97,21 +97,35 @@ export async function downloadDeviceModel(
   const existing = await FileSystem.getInfoAsync(dest);
   if (existing.exists) return dest;
 
-  const download = FileSystem.createDownloadResumable(
-    url,
-    dest,
-    {},
-    (p) => {
-      if (p.totalBytesExpectedToWrite > 0) {
-        onProgress?.(p.totalBytesWritten / p.totalBytesExpectedToWrite);
-      }
-    }
-  );
-  const result = await download.downloadAsync();
-  if (!result || result.status !== 200) {
-    throw new Error(`模型下载失败（HTTP ${result?.status ?? '未知'}）`);
+  // 依次尝试：原地址 -> 国内镜像（hf-mirror.com，国内直连 HuggingFace 常失败）
+  const urls = [url];
+  if (url.includes('huggingface.co')) {
+    urls.push(url.replace('huggingface.co', 'hf-mirror.com'));
   }
-  return dest;
+
+  let lastError: unknown = null;
+  for (const u of urls) {
+    try {
+      const download = FileSystem.createDownloadResumable(
+        u,
+        dest,
+        {},
+        (p) => {
+          if (p.totalBytesExpectedToWrite > 0) {
+            onProgress?.(p.totalBytesWritten / p.totalBytesExpectedToWrite);
+          }
+        }
+      );
+      const result = await download.downloadAsync();
+      if (result && result.status === 200) return dest;
+      lastError = new Error(`HTTP ${result?.status ?? '未知'}`);
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw new Error(
+    `模型下载失败：${lastError instanceof Error ? lastError.message : String(lastError)}（已尝试原地址与国内镜像，请检查网络）`
+  );
 }
 
 export async function deleteDeviceModel(name: string): Promise<void> {
