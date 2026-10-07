@@ -705,6 +705,12 @@ export default function AiQuestionsScreen() {
         {q.requirement ? (
           <Text style={styles.requirementText}>{q.requirement}</Text>
         ) : null}
+        {q.givenWords && q.givenWords.length > 0 ? (
+          <Text style={styles.givenWordsText}>
+            必须用到：
+            <Text style={styles.givenWordStrong}>{q.givenWords.join('、')}</Text>
+          </Text>
+        ) : null}
         <View style={styles.questionBox}>
           <Text style={styles.questionText}>{q.prompt}</Text>
         </View>
@@ -772,11 +778,6 @@ export default function AiQuestionsScreen() {
           </>
         ) : (
           <>
-            {isTranslation && q.requiredTerms && q.requiredTerms.length > 0 ? (
-              <Text style={styles.requiredTerms}>
-                必用词：<Text style={styles.requiredTerm}>{q.requiredTerms.join('、')}</Text>
-              </Text>
-            ) : null}
             <TextInput
               style={styles.input}
               placeholder={
@@ -993,6 +994,8 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     marginTop: spacing.md,
   },
+  givenWordsText: { fontSize: 14, color: colors.textMuted, lineHeight: 21, marginTop: 6 },
+  givenWordStrong: { fontWeight: '800', color: colors.primary },
   questionBox: { paddingVertical: spacing.md },
   questionText: { fontSize: 17, fontWeight: '700', color: colors.text, lineHeight: 26 },
   options: { gap: spacing.sm },

@@ -750,6 +750,12 @@ export default function GuidedScreen() {
         {q.requirement ? (
           <Text style={styles.requirementText}>{q.requirement}</Text>
         ) : null}
+        {q.givenWords && q.givenWords.length > 0 ? (
+          <Text style={styles.givenWordsText}>
+            必须用到：
+            <Text style={styles.givenWordStrong}>{q.givenWords.join('、')}</Text>
+          </Text>
+        ) : null}
         <View style={styles.questionBox}>
           <Text style={styles.questionText}>{q.prompt}</Text>
         </View>
@@ -1070,6 +1076,8 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     marginTop: spacing.md,
   },
+  givenWordsText: { fontSize: 14, color: colors.textMuted, lineHeight: 21, marginTop: 6 },
+  givenWordStrong: { fontWeight: '800', color: colors.primary },
   questionBox: { paddingVertical: spacing.md },
   questionText: { fontSize: 17, fontWeight: '700', color: colors.text, lineHeight: 26 },
   options: { gap: spacing.sm },

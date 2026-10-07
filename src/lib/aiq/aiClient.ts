@@ -217,7 +217,8 @@ ${injectionBlock}
 - stem：题干。只有 stem 里可以出现空格标记（____ 或 ___(原形)）；题干不要带「第几题」「请作答」之类的话。
 - options：选择题的 4 个选项；填空题 / 翻译题必须留空数组 []。
 - correctAnswer：参考答案。**必须与 stem 严格对应**：把 stem 里的每个空依次换成正确形式后，去掉空格标记，就是 correctAnswer（空格数、顺序、标点都要对得上）。
-- requiredTerms：翻译题必用词；其它题型留空数组。
+- givenWords：**作答必须使用的词**（字符串数组）。只要 requirement 里说了「必须用到给出的词 / 括号中的词」，就必须在这里把这些词列全，界面会把它们显示给学习者；不需要给定词时留空数组 []。禁止只写「必须用到括号中的词」却不给词。
+- requiredTerms：翻译题必用词（与 givenWords 相同）；其它题型留空数组。
 - rubric：翻译题给分点；其它题型留空数组。
 - explanation：一句中文解析，只讲本题考点。
 - timeLimit（可选）：本题建议限时秒数（整数，如 30）；不填表示不限时。
@@ -230,7 +231,7 @@ ${injectionBlock}
 4. 完形填空：60~120 词短文，全篇只保留 1 个空（用 ____ 表示这唯一的空），并给出 4 个选项（只针对这一个空）。严禁在一道完形填空里放多个空。
 5. 阅读理解：100~160 词短文 + 只设 1 个问题 + 4 个选项。
 6. 语法填空：requirement 固定写「用括号中单词的正确形式填空。」；stem 为单句或短句，每个空写成 ___(原形)（括号里给原形，例如 I ___(have) an apple. She ___(have) an apple too.）；options 留空；correctAnswer 填把每个空换成正确形式后的完整句子，且必须与 stem 逐字对应（多个空时整段给出）。
-7. 翻译：requirement 写「把下面这句话翻译成英文」（若有必用词再补一句「必须用到括号中的词」）；stem 只放要翻译的那句中文；必须指定 1~2 个必用词（来自【本次训练单词】，写入 requiredTerms）；必须自行为本题划分 rubric（每点含 label 与 max，所有 max 之和必须恰好等于 5，且必须包含「正确使用必用词」这一点）；correctAnswer 给参考译文（必须包含必用词）。
+7. 翻译：requirement 写「把下面这句话翻译成英文，必须用到给出的词。」；stem 只放要翻译的那句中文；必须指定 1~2 个必用词（来自【本次训练单词】，同时写入 givenWords 与 requiredTerms，界面会把它们显示出来）；必须自行为本题划分 rubric（每点含 label 与 max，所有 max 之和必须恰好等于 5，且必须包含「正确使用必用词」这一点）；correctAnswer 给参考译文（必须包含必用词）。
 8. 选择题的 4 个选项必须是同一词性、语义相近或易混淆的词/短语；严禁把【本次训练单词】里的词直接当作干扰项（那样会泄露答案），干扰项应来自学习者已掌握词汇的自然语境。correctAnswer 必须与 options 中的某一项完全一致。
 9. targetTerms 填该题实际考查的单词（小写，来自上面的训练单词）。
 10. 必须围绕【本次训练单词】出题；下面的示例仅供 JSON 格式参考，严禁照抄示例内容（不要出现 have / apple 等与训练单词无关的内容）。
@@ -238,7 +239,7 @@ ${injectionBlock}
 【输出格式】只输出一个 JSON 对象，不要任何额外文字：
 {"questions":[
   {"type":"grammar","requirement":"用括号中单词的正确形式填空。","stem":"I ___(have) an apple. She ___(have) an apple too.","options":[],"correctAnswer":"I have an apple. She has an apple too.","explanation":"第一空主语是 I 用原形 have，第二空主语 She 用三单 has。","timeLimit":30,"targetTerms":["have"]},
-  {"type":"translation","requirement":"把下面这句话翻译成英文，必须用到括号中的词。","stem":"我有一个苹果。","options":[],"requiredTerms":["have"],"correctAnswer":"I have an apple.","rubric":[{"label":"正确使用必用词 have","max":2},{"label":"语义准确完整","max":2},{"label":"语法正确","max":1}],"explanation":"…","score":5,"targetTerms":["have"]}
+  {"type":"translation","requirement":"把下面这句话翻译成英文，必须用到给出的词。","stem":"我有一个苹果。","options":[],"givenWords":["have"],"requiredTerms":["have"],"correctAnswer":"I have an apple.","rubric":[{"label":"正确使用必用词 have","max":2},{"label":"语义准确完整","max":2},{"label":"语法正确","max":1}],"explanation":"…","score":5,"targetTerms":["have"]}
 ]}`;
 
   const content = await completeText(config, prompt, { temperature: 0.85, maxTokens });
@@ -299,6 +300,12 @@ ${injectionBlock}
           .filter((t) => t.length > 0)
       : [];
 
+    // 作答必须使用的「给定词」（任意题型）：界面会明确列出来，避免只写「必须用到括号中的词」
+    // 却看不到词
+    const givenWords = Array.isArray(item?.givenWords)
+      ? (item.givenWords as unknown[]).map((t) => String(t).trim()).filter((t) => t.length > 0)
+      : [];
+
     const question: Question = {
       id: qid(),
       type,
@@ -319,7 +326,11 @@ ${injectionBlock}
       // 必用词只保留训练词；AI 漏给或乱给时回退到目标单词
       const relReq = requiredTerms.filter((t) => wordSet.has(t));
       question.requiredTerms = relReq.length > 0 ? relReq : question.targetTerms.slice(0, 1);
+      // 翻译题的「给定词」与必用词是同一批，界面据此明确列出
+      question.givenWords = question.requiredTerms;
       question.rubric = normalizeRubric(item?.rubric, question.requiredTerms);
+    } else if (givenWords.length > 0) {
+      question.givenWords = givenWords;
     }
 
     out.push(...splitMultiBlankCloze(question));

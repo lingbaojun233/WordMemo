@@ -125,7 +125,12 @@ export type Question = {
   explanation?: string;
   /** 关联的目标单词（小写） */
   targetTerms: string[];
-  /** 翻译题必用词汇：学习者答案必须用到这些词（小写，来自目标单词） */
+  /**
+   * 作答必须使用的「给定词」（界面会明确列出）。
+   * 适用于任何「要求用指定的词作答」的题型（如翻译题必须用到的词）。
+   */
+  givenWords?: string[];
+  /** 翻译题必用词汇：学习者答案必须用到这些词（小写，来自目标单词；与 givenWords 一致） */
   requiredTerms?: string[];
   /** 翻译题给分点：AI 出题时自行划分，各点 max 之和为 5 */
   rubric?: ScorePoint[];
