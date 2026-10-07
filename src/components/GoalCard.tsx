@@ -105,7 +105,8 @@ export function GoalCard({
       )}
 
       <Text style={styles.line}>
-        今日需学 <Text style={styles.strong}>{plan.dailyTarget}</Text> 词（今天已学 {plan.studiedToday}）
+        今日需学 <Text style={styles.strong}>{plan.dailyTarget}</Text> 词（今天已学 {plan.studiedToday}
+        {plan.studiedToday >= plan.dailyTarget ? '，今日目标已达标' : ''}）
       </Text>
 
       {/* 连续学习 / 中断提示 */}

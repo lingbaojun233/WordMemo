@@ -110,6 +110,49 @@ export function streakInfo(stats: DailyStat[], now = Date.now()): StreakInfo {
   return { streak, missedDays, lastStudyDate };
 }
 
+export type DailyPlan = {
+  /** 今日目标词数 */
+  target: number;
+  /** 今天已学词数 */
+  studiedToday: number;
+  /** 今日还需学习词数 */
+  remaining: number;
+  /** 本词本还剩多少新词（box === 0） */
+  newWordsLeft: number;
+  /** 今日目标是否**真的**达成（今天已学 >= 今日目标） */
+  goalMet: boolean;
+  /** 单词本为空 */
+  empty: boolean;
+};
+
+/**
+ * 某个词本的「今日学习计划」。
+ *
+ * 这里刻意把两种情况分开：
+ *  - `goalMet`：今天确实学够了今日目标 → 可以提示「今日目标已完成」
+ *  - `newWordsLeft === 0`：本词本的单词都学过一遍了、没有新词可学
+ * 后者**绝不能**显示成「已完成今日目标」（用户今天可能一次都没学）。
+ */
+export function dailyPlan(params: {
+  book: Wordbook | null;
+  books: Wordbook[];
+  settings: StudySettings;
+  now?: number;
+}): DailyPlan {
+  const { book, books, settings, now = Date.now() } = params;
+  const plan = goalPlan({ book, books, settings, now });
+  const newWordsLeft = book ? book.words.filter((w) => w.box === 0).length : 0;
+  const remaining = Math.max(0, plan.dailyTarget - plan.studiedToday);
+  return {
+    target: plan.dailyTarget,
+    studiedToday: plan.studiedToday,
+    remaining,
+    newWordsLeft,
+    goalMet: remaining <= 0 && newWordsLeft > 0,
+    empty: !book || book.words.length === 0,
+  };
+}
+
 export type GoalPlan = {
   /** 是否已制定过目标（未制定时进入「制定」流程，之后是「修改」） */
   configured: boolean;

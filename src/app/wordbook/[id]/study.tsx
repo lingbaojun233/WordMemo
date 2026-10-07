@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
 import { buildQuiz, QuizQuestion } from '../../../lib/quiz';
 import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
 import { colors, radius, spacing } from '../../../lib/theme';
 import { Word } from '../../../lib/types';
-import { shuffle, startOfToday } from '../../../lib/utils';
+import { shuffle } from '../../../lib/utils';
+import { dailyPlan } from '../../../lib/goal';
 import { Button, EmptyState } from '../../../components/ui';
 
 const GROUP_SIZE = 5; // 每 5 个单词为一组：先背诵一组，再测验一组
@@ -34,20 +35,13 @@ export default function StudyScreen() {
     loadStudySettings().then(setSettings);
   }, []);
 
-  // 今日还需学习多少词（学到今日目标完成为止）
-  const remaining = useMemo(() => {
-    if (!book || !settings) return 0;
-    const start = startOfToday();
-    const learnedToday = book.words.filter(
-      (w) => w.lastReviewedAt && w.lastReviewedAt >= start
-    ).length;
-    if (settings.goalType === 'daily') {
-      return Math.max(0, settings.dailyGoal - learnedToday);
-    }
-    const active = book.words.filter((w) => w.box === 0).length; // 尚未完成初学的新词
-    const perDay = Math.ceil(active / Math.max(1, settings.deadlineDays));
-    return Math.max(0, perDay - learnedToday);
-  }, [book, settings]);
+  // 今日学习计划（与「学习」Tab 同一套口径：今日目标 / 今天已学 / 剩余新词）
+  const daily = useMemo(() => {
+    if (!settings) return null;
+    return dailyPlan({ book: book ?? null, books: wordbooks, settings });
+  }, [book, settings, wordbooks]);
+
+  const remaining = daily?.remaining ?? 0;
 
   // 本次要学的新词（box 0，尚未学会），最多 remaining 个
   const selected = useMemo(() => {
@@ -70,6 +64,18 @@ export default function StudyScreen() {
     return (
       <View style={styles.container}>
         <EmptyState icon="alert-circle" title="单词本不存在" />
+      </View>
+    );
+  }
+
+  // 设置还没加载完时先不要下结论，否则会闪一下「今日目标已完成」
+  if (!settings || !daily) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: '先背诵后测验' }} />
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.primary} size="large" />
+        </View>
       </View>
     );
   }
@@ -135,7 +141,7 @@ export default function StudyScreen() {
           <View style={styles.heroIcon}>
             <Ionicons name="albums" size={40} color={colors.primary} />
           </View>
-          {remaining > 0 && selected.length > 0 ? (
+          {selected.length > 0 ? (
             <>
               <Text style={styles.title}>今日还需学习 {remaining} 词</Text>
               <Text style={styles.subDesc}>
@@ -146,11 +152,19 @@ export default function StudyScreen() {
               </Text>
               <Button label="开始学习" icon="play" onPress={start} style={{ alignSelf: 'stretch' }} />
             </>
+          ) : daily.empty ? (
+            <EmptyState icon="albums-outline" title="单词本为空" description="请先添加或导入单词" />
+          ) : daily.newWordsLeft === 0 ? (
+            <EmptyState
+              icon="checkmark-done-circle-outline"
+              title="新词都学过一遍了"
+              description="本词本已经没有新词可学，可以去「复习到期单词」巩固，或换一本单词本"
+            />
           ) : (
             <EmptyState
               icon="checkmark-circle-outline"
               title="今日目标已完成"
-              description="很棒！可以复习到期单词，或休息一下"
+              description={`今天已学 ${daily.studiedToday} 词，达到今日目标 ${daily.target} 词；可以复习到期单词，或休息一下`}
             />
           )}
         </View>

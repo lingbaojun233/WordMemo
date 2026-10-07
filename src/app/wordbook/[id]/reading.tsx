@@ -27,7 +27,8 @@ import {
 } from '../../../lib/readingSession';
 import { colors, radius, spacing } from '../../../lib/theme';
 import { Word } from '../../../lib/types';
-import { shuffle, startOfToday } from '../../../lib/utils';
+import { shuffle } from '../../../lib/utils';
+import { dailyPlan } from '../../../lib/goal';
 import { Button } from '../../../components/ui';
 import { LEVEL_SAMPLES } from '../../../data/levelTestWords';
 
@@ -67,20 +68,13 @@ export default function ReadingScreen() {
     passageIdxRef.current = passageIdx;
   }, [passageIdx]);
 
-  // 今日还需学习多少词
-  const remaining = useMemo(() => {
-    if (!book || !settings) return 0;
-    const start = startOfToday();
-    const learnedToday = book.words.filter(
-      (w) => w.lastReviewedAt && w.lastReviewedAt >= start
-    ).length;
-    if (settings.goalType === 'daily') {
-      return Math.max(0, settings.dailyGoal - learnedToday);
-    }
-    const active = book.words.filter((w) => w.box === 0).length;
-    const perDay = Math.ceil(active / Math.max(1, settings.deadlineDays));
-    return Math.max(0, perDay - learnedToday);
-  }, [book, settings]);
+  // 今日学习计划（与「学习」Tab 同一套口径：今日目标 / 今天已学 / 剩余新词）
+  const daily = useMemo(() => {
+    if (!settings) return null;
+    return dailyPlan({ book: book ?? null, books: wordbooks, settings });
+  }, [book, settings, wordbooks]);
+
+  const remaining = daily?.remaining ?? 0;
 
   // 本次要学的新词（box 0）
   const targetCandidates = useMemo(() => {
@@ -182,7 +176,13 @@ export default function ReadingScreen() {
 
     const words = targetCandidates;
     if (words.length === 0) {
-      setError('今日目标已完成，无需再生成短文');
+      setError(
+        daily?.empty
+          ? '单词本为空，请先添加单词'
+          : daily && daily.newWordsLeft === 0
+          ? '本词本的新词都学过一遍了，没有新词可用来生成短文'
+          : '今日目标已完成，无需再生成短文'
+      );
       return;
     }
 
@@ -256,7 +256,17 @@ export default function ReadingScreen() {
 
           {remaining > 0 ? (
             <Button label="开始阅读" icon="sparkles" onPress={start} style={{ alignSelf: 'stretch' }} />
-          ) : null}
+          ) : daily?.empty ? (
+            <Text style={styles.emptyHint}>单词本为空，请先添加单词</Text>
+          ) : daily && daily.newWordsLeft === 0 ? (
+            <Text style={styles.emptyHint}>
+              本词本的新词都学过一遍了，没有新词可用来生成短文——可以去「复习到期单词」巩固，或换一本单词本
+            </Text>
+          ) : (
+            <Text style={styles.emptyHint}>
+              今日目标已完成（今天已学 {daily?.studiedToday ?? 0} 词），可以复习到期单词或休息一下
+            </Text>
+          )}
           <Button
             label="未测水平？先做词汇测验"
             variant="ghost"
@@ -455,6 +465,13 @@ const styles = StyleSheet.create({
   summaryLabel: { fontSize: 14, color: colors.textMuted },
   summaryValue: { fontSize: 14, fontWeight: '700', color: colors.text },
   errorText: { color: colors.danger, fontSize: 14, textAlign: 'center' },
+  emptyHint: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 21,
+    marginBottom: spacing.sm,
+  },
   generatingText: { fontSize: 17, fontWeight: '700', color: colors.text, marginTop: spacing.md },
   generatingHint: { fontSize: 13, color: colors.textMuted },
   readingContent: { padding: spacing.lg, paddingBottom: 40 },
