@@ -126,15 +126,17 @@ export default function StudyTab() {
         style={{ alignSelf: 'stretch', marginTop: spacing.lg }}
       />
 
-      {/* 复习到期单词 */}
-      <Button
-        label={stats.dueCount > 0 ? `复习到期单词（${stats.dueCount} 个）` : '暂无到期单词'}
-        icon="refresh"
-        variant="outline"
-        onPress={startReview}
-        disabled={!currentBook || stats.dueCount === 0}
-        style={{ alignSelf: 'stretch', marginTop: spacing.md }}
-      />
+      {/* 复习到期单词（AI 出题模式已自动复习，不单独显示） */}
+      {mode !== 'ai_questions' ? (
+        <Button
+          label={stats.dueCount > 0 ? `复习到期单词（${stats.dueCount} 个）` : '暂无到期单词'}
+          icon="refresh"
+          variant="outline"
+          onPress={startReview}
+          disabled={!currentBook || stats.dueCount === 0}
+          style={{ alignSelf: 'stretch', marginTop: spacing.md }}
+        />
+      ) : null}
 
       {/* AI 训练档案 */}
       <Button
