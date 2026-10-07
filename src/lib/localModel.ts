@@ -14,16 +14,35 @@ import type { LlamaContext } from 'llama.rn';
 
 type LlamaModule = typeof import('llama.rn');
 
+// 设备端模型日志：统一前缀，便于从 Metro / logcat / Xcode 控制台抓取排查
+const TAG = 'WordMemo:localAI';
+function log(...args: unknown[]): void {
+  console.log(`[${TAG}]`, ...args);
+}
+function warn(...args: unknown[]): void {
+  console.warn(`[${TAG}]`, ...args);
+}
+
 let llamaPromise: Promise<LlamaModule> | null = null;
 
 function getLlama(): Promise<LlamaModule> {
+  log('加载 llama.rn 模块，平台 =', Platform.OS);
   if (Platform.OS === 'web') {
+    warn('设备端模型仅在手机 App 可用，网页版请改用联网模型');
     return Promise.reject(
       new Error('设备端模型仅在手机 App 可用，网页版请改用联网模型')
     );
   }
   if (!llamaPromise) {
-    llamaPromise = import('llama.rn');
+    llamaPromise = import('llama.rn')
+      .then((m) => {
+        log('llama.rn 模块加载成功');
+        return m;
+      })
+      .catch((e) => {
+        warn('llama.rn 模块加载失败', e instanceof Error ? e.message : String(e));
+        throw e;
+      });
   }
   return llamaPromise;
 }
@@ -174,11 +193,18 @@ export async function downloadDeviceModel(
   }
   await FileSystem.makeDirectoryAsync(modelDir(), { intermediates: true });
   const dest = modelPath(name);
+  log('开始下载模型', name, '->', dest);
 
   // 已存在且校验通过 -> 直接复用；残缺文件先清理，避免加载半个模型直接崩
   const existing = await verifyDeviceModel(name);
-  if (existing.ok) return dest;
-  if (existing.size > 0) await removeModelFiles(name);
+  if (existing.ok) {
+    log('模型已存在且校验通过，直接复用', name);
+    return dest;
+  }
+  if (existing.size > 0) {
+    warn('模型文件不完整，先清理再重下', name, existing.size);
+    await removeModelFiles(name);
+  }
 
   // 依次尝试：原地址 -> 国内镜像（hf-mirror.com，国内直连 HuggingFace 常失败）
   const urls = [url];
@@ -188,6 +214,7 @@ export async function downloadDeviceModel(
 
   let lastError: unknown = null;
   for (const u of urls) {
+    log('尝试下载地址', u);
     let expectedTotal = 0;
     try {
       const download = FileSystem.createDownloadResumable(
@@ -224,8 +251,10 @@ export async function downloadDeviceModel(
 
       // 记录实际大小，下次加载前据此校验完整性
       await FileSystem.writeAsStringAsync(sizeRecordPath(name), String(actual));
+      log('模型下载完成', name, actual, '字节');
       return dest;
     } catch (e) {
+      warn('该地址下载失败', u, e instanceof Error ? e.message : String(e));
       lastError = e;
     }
   }
@@ -273,17 +302,22 @@ async function initContext(name: string): Promise<LlamaContext> {
   const path = modelPath(name);
   let lastError: unknown = null;
 
+  log('初始化模型上下文', name, '策略 =', preferCpu ? '纯 CPU' : '先 GPU 后 CPU');
   for (const gpuLayers of preferCpu ? [0] : [99, 0]) {
+    log('尝试加载模型', gpuLayers === 0 ? 'CPU' : `GPU(${gpuLayers} 层)`, '路径 =', path);
     try {
-      return await initLlama({
+      const ctx = await initLlama({
         model: path,
         n_ctx: N_CTX,
         n_gpu_layers: gpuLayers,
         // Android 上 mlock 常因内存锁定限制失败，关掉更稳
         use_mlock: false,
       });
+      log('模型加载成功', gpuLayers === 0 ? 'CPU' : 'GPU');
+      return ctx;
     } catch (e) {
       lastError = e;
+      warn('加载失败', gpuLayers === 0 ? 'CPU' : `GPU(${gpuLayers} 层)`, describeNativeError(e));
       if (gpuLayers !== 0) preferCpu = true; // GPU 不可用，下次直接用 CPU
     }
   }
@@ -336,6 +370,7 @@ async function runCompletion(
     Math.min(opts?.maxTokens ?? DEFAULT_MAX_TOKENS, budget)
   );
 
+  log('开始推理', name, '提示词约', estimateTokens(prompt), 'tokens，生成上限', nPredict);
   const result = await ctx.completion({
     messages: [{ role: 'user', content: prompt }],
     n_predict: nPredict,
@@ -344,8 +379,10 @@ async function runCompletion(
   });
   const text = (result.text ?? '').trim();
   if (!text) {
+    warn('推理返回空内容', name);
     throw new Error('本地模型没有输出内容（可能上下文已满或模型不支持当前提示词）');
   }
+  log('推理完成', name, '输出', text.length, '字符');
   return text;
 }
 
@@ -364,6 +401,7 @@ export async function generateWithDeviceModel(
       return await runCompletion(prompt, name, url, opts);
     } catch (e) {
       const first = describeNativeError(e);
+      warn('首次推理失败，改用纯 CPU 重试', first);
       preferCpu = true;
       await releaseContext();
       try {

@@ -33,10 +33,13 @@ import {
 } from '../../../lib/aiq/types';
 import {
   buildWordGroups,
+  difficultyBias,
   EASY_TYPES,
   HARD_TYPES,
   hardQuestionCount,
+  QUESTION_TIERS,
   recommendNextMode,
+  requiredTier,
   shouldDoHardRound,
 } from '../../../lib/aiq/flow';
 import { extractBlanks, gradeBlanks } from '../../../lib/aiq/blanks';
@@ -50,6 +53,29 @@ function norm(s: string): string {
     .replace(/[.,!?;:'"“”‘’()（）\s]+/g, '');
 }
 
+/** 从释义开头提取词性缩写（如 "n."、"v."、"adj."），没有则返回空串 */
+function extractPos(meaning: string): string {
+  const m = meaning.trim().match(/^([a-z]+\.)/i);
+  return m ? m[1] : '';
+}
+
+const POS_LABEL: Record<string, string> = {
+  'n.': '名词',
+  'v.': '动词',
+  'vt.': '及物动词',
+  'vi.': '不及物动词',
+  'adj.': '形容词',
+  'adv.': '副词',
+  'prep.': '介词',
+  'conj.': '连词',
+  'pron.': '代词',
+  'num.': '数词',
+  'art.': '冠词',
+  'int.': '感叹词',
+  'aux.': '助动词',
+  'abbr.': '缩写',
+};
+
 export default function GuidedScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { wordbooks, reviewWord } = useApp();
@@ -58,8 +84,10 @@ export default function GuidedScreen() {
 
   const [settings, setSettings] = useState<StudySettings | null>(null);
   const [phase, setPhase] = useState<Phase>('intro');
-  // 记录本次会话每个单词的答对/答错次数（用于结束后升级掌握度）
-  const wordStatsRef = useRef(new Map<string, { correct: number; wrong: number }>());
+  // 记录本次会话每个单词的答对/答错次数，以及答对过的最高难度档位（用于按掌握难度升级）
+  const wordStatsRef = useRef(
+    new Map<string, { correct: number; wrong: number; bestTier: number }>()
+  );
 
   const [groups, setGroups] = useState<Word[][]>([]);
   const [groupIdx, setGroupIdx] = useState(0);
@@ -221,9 +249,13 @@ export default function GuidedScreen() {
       );
       for (const t of q.targetTerms) {
         const key = t.toLowerCase();
-        const cur = wordStatsRef.current.get(key) ?? { correct: 0, wrong: 0 };
-        if (result.isCorrect) cur.correct += 1;
-        else cur.wrong += 1;
+        const cur = wordStatsRef.current.get(key) ?? { correct: 0, wrong: 0, bestTier: 0 };
+        if (result.isCorrect) {
+          cur.correct += 1;
+          cur.bestTier = Math.max(cur.bestTier, QUESTION_TIERS[q.type] ?? 1);
+        } else {
+          cur.wrong += 1;
+        }
         wordStatsRef.current.set(key, cur);
       }
       if (round === 1) {
@@ -254,9 +286,13 @@ export default function GuidedScreen() {
     );
     for (const t of q.targetTerms) {
       const key = t.toLowerCase();
-      const cur = wordStatsRef.current.get(key) ?? { correct: 0, wrong: 0 };
-      if (result.isCorrect) cur.correct += 1;
-      else cur.wrong += 1;
+      const cur = wordStatsRef.current.get(key) ?? { correct: 0, wrong: 0, bestTier: 0 };
+      if (result.isCorrect) {
+        cur.correct += 1;
+        cur.bestTier = Math.max(cur.bestTier, QUESTION_TIERS[q.type] ?? 1);
+      } else {
+        cur.wrong += 1;
+      }
       wordStatsRef.current.set(key, cur);
     }
     if (round === 1) {
@@ -275,7 +311,7 @@ export default function GuidedScreen() {
     );
     for (const t of q.targetTerms) {
       const key = t.toLowerCase();
-      const cur = wordStatsRef.current.get(key) ?? { correct: 0, wrong: 0 };
+      const cur = wordStatsRef.current.get(key) ?? { correct: 0, wrong: 0, bestTier: 0 };
       cur.wrong += 1;
       wordStatsRef.current.set(key, cur);
     }
@@ -303,11 +339,14 @@ export default function GuidedScreen() {
     await update(closed);
     setNextMode(recommended);
 
-    // 依据本次表现升级单词掌握度：全对才升级，任何一次答错都不升级
+    // 依据「掌握难度阶梯」升级：答对过不低于该词当前层级所需档位的题才升级；
+    // 难度随用户能力自适应（能力强需更难、能力弱需更易），但不改变记忆算法的时间
+    const bias = difficultyBias(state.attempts);
     for (const [term, stat] of wordStatsRef.current) {
       const w = book.words.find((x) => x.term.toLowerCase() === term);
       if (!w) continue;
-      const mastered = stat.correct > 0 && stat.wrong === 0;
+      const need = requiredTier(w.box, bias);
+      const mastered = stat.bestTier >= need;
       reviewWord(book.id, w.id, mastered ? 'good' : 'again');
     }
     wordStatsRef.current.clear();
@@ -469,21 +508,37 @@ export default function GuidedScreen() {
             </Text>
           </View>
 
-          {group.map((w) => (
-            <View key={w.id} style={styles.wordCard}>
-              <View style={styles.wordHead}>
-                <Text style={styles.wordTerm}>{w.term}</Text>
-                {w.phonetic ? <Text style={styles.wordPhonetic}>{w.phonetic}</Text> : null}
+          {group.map((w) => {
+            const pos = extractPos(w.meaning);
+            return (
+              <View key={w.id} style={styles.wordCard}>
+                <View style={styles.wordHead}>
+                  <Text style={styles.wordTerm}>{w.term}</Text>
+                  {w.phonetic ? <Text style={styles.wordPhonetic}>{w.phonetic}</Text> : null}
+                  {pos ? (
+                    <View style={styles.wordPosBadge}>
+                      <Text style={styles.wordPosText}>{POS_LABEL[pos] ?? pos}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text style={styles.wordMeaning}>{w.meaning}</Text>
+                {w.example ? (
+                  <View style={styles.usageRow}>
+                    <Text style={styles.usageLabel}>例句</Text>
+                    <Text style={styles.wordExample}>{w.example}</Text>
+                  </View>
+                ) : null}
+                {w.derivatives && w.derivatives.length > 0 ? (
+                  <View style={styles.usageRow}>
+                    <Text style={styles.usageLabel}>用法</Text>
+                    <Text style={styles.wordDeriv}>
+                      {w.derivatives.map((d) => `${d.term}（${d.meaning}）`).join('、')}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-              <Text style={styles.wordMeaning}>{w.meaning}</Text>
-              {w.example ? <Text style={styles.wordExample}>{w.example}</Text> : null}
-              {w.derivatives && w.derivatives.length > 0 ? (
-                <Text style={styles.wordDeriv}>
-                  派生：{w.derivatives.map((d) => `${d.term}（${d.meaning}）`).join('、')}
-                </Text>
-              ) : null}
-            </View>
-          ))}
+            );
+          })}
 
           {errorMsg ? <Text style={styles.error}>{errorMsg}</Text> : null}
 
@@ -942,8 +997,17 @@ const styles = StyleSheet.create({
   wordTerm: { fontSize: 18, fontWeight: '800', color: colors.text },
   wordPhonetic: { fontSize: 13, color: colors.textMuted },
   wordMeaning: { fontSize: 15, color: colors.text, marginTop: 4 },
-  wordExample: { fontSize: 12, color: colors.textLight, marginTop: 4, fontStyle: 'italic' },
-  wordDeriv: { fontSize: 12, color: colors.primary, marginTop: 4 },
+  wordPosBadge: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  wordPosText: { fontSize: 11, fontWeight: '700', color: colors.primaryDark },
+  usageRow: { marginTop: 4 },
+  usageLabel: { fontSize: 11, fontWeight: '700', color: colors.textMuted },
+  wordExample: { fontSize: 12, color: colors.textLight, marginTop: 2, fontStyle: 'italic' },
+  wordDeriv: { fontSize: 12, color: colors.primary, marginTop: 2 },
   badgeRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   badge: {
     paddingHorizontal: 10,
