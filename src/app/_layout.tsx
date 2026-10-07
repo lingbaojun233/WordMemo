@@ -77,6 +77,7 @@ function RootNavigator() {
             <Stack.Screen name="wordbook/[id]/study" options={{ title: '先背诵后测验' }} />
             <Stack.Screen name="wordbook/[id]/review" options={{ title: '复习' }} />
             <Stack.Screen name="wordbook/[id]/questions" options={{ title: 'AI 出题' }} />
+            <Stack.Screen name="wordbook/[id]/guided" options={{ title: '导学模式' }} />
             <Stack.Screen name="ai-training" options={{ title: 'AI 训练档案' }} />
             <Stack.Screen name="wordbook/[id]/progress" options={{ title: '各阶段学习情况' }} />
           </Stack.Protected>

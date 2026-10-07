@@ -83,6 +83,15 @@ export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
   translation: '翻译',
 };
 
+/** 下次出题的难度策略（由上次表现决定） */
+export type NextMode = 'easy' | 'hard' | 'mixed';
+
+export const NEXT_MODE_LABEL: Record<NextMode, string> = {
+  easy: '只测简单题',
+  hard: '只测难题',
+  mixed: '完整流程',
+};
+
 /** 提示词库层级 */
 export type PromptLayer = 'core' | 'recent' | 'temp';
 
@@ -187,6 +196,8 @@ export type AiqState = {
   group: AbGroup;
   /** 知识点掌握度（本地等级管理） */
   proficiency: Record<string, Proficiency>;
+  /** 下次出题建议的难度策略（由上次表现决定，开屏时作为默认） */
+  nextMode: NextMode;
   lastSessionAt?: number;
 };
 
@@ -197,6 +208,7 @@ export function emptyState(): AiqState {
     advice: [],
     group: 'A',
     proficiency: {},
+    nextMode: 'mixed',
   };
 }
 

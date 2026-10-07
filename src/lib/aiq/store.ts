@@ -37,6 +37,10 @@ export async function loadAiqState(userId: string): Promise<AiqState> {
       advice: Array.isArray(parsed.advice) ? parsed.advice : [],
       proficiency: parsed.proficiency ?? {},
       group: parsed.group === 'A' || parsed.group === 'B' ? parsed.group : assignGroup(),
+      nextMode:
+        parsed.nextMode === 'easy' || parsed.nextMode === 'hard' || parsed.nextMode === 'mixed'
+          ? parsed.nextMode
+          : 'mixed',
     });
   } catch (e) {
     console.warn('加载 AI 出题数据失败', e);
@@ -155,5 +159,9 @@ export async function decryptBackup(json: string, passphrase: string): Promise<A
     entries: parsed.entries ?? [],
     advice: parsed.advice ?? [],
     proficiency: parsed.proficiency ?? {},
+    nextMode:
+      parsed.nextMode === 'easy' || parsed.nextMode === 'hard' || parsed.nextMode === 'mixed'
+        ? parsed.nextMode
+        : 'mixed',
   });
 }
