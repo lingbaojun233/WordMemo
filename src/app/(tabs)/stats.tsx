@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../lib/AppContext';
 import { boxLabel, isMastered } from '../../lib/srs';
 import { colors, radius, spacing } from '../../lib/theme';
@@ -8,19 +9,47 @@ import { loadStudySettings, saveStudySettings, StudySettings } from '../../lib/s
 import { ReviewResult } from '../../lib/types';
 import { formatDate } from '../../lib/utils';
 import { BookSelector } from '../../components/BookSelector';
-import { EmptyState } from '../../components/ui';
+import { Button, EmptyState } from '../../components/ui';
+import { loadAiqState } from '../../lib/aiq/store';
+import {
+  AiqState,
+  Attempt,
+  ErrorType,
+  ERROR_TYPE_LABEL,
+  QUESTION_TYPE_LABEL,
+} from '../../lib/aiq/types';
 
 type HistoryItem = { term: string; result: ReviewResult; box: number; at: number };
+type DayActivity = { day: string; words: HistoryItem[]; attempts: Attempt[] };
 
 export default function StatsScreen() {
-  const { wordbooks } = useApp();
+  const { wordbooks, currentUser } = useApp();
   const [settings, setSettings] = useState<StudySettings | null>(null);
+  const [aiq, setAiq] = useState<AiqState | null>(null);
+  const [selectedDay, setSelectedDay] = useState<DayActivity | null>(null);
 
   useEffect(() => {
     loadStudySettings().then(setSettings);
   }, []);
 
-  // 与「学习」页共用同一个「当前单词本」，两处选择方式与结果都保持一致
+  // 每次进入统计页都重新读取 AI 训练数据
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      const userId = currentUser?.id;
+      if (userId) {
+        loadAiqState(userId).then((s) => {
+          if (alive) setAiq(s);
+        });
+      } else {
+        setAiq(null);
+      }
+      return () => {
+        alive = false;
+      };
+    }, [currentUser?.id])
+  );
+
   const book =
     wordbooks.find((b) => b.id === settings?.currentBookId) ?? wordbooks[0] ?? null;
 
@@ -31,7 +60,6 @@ export default function StatsScreen() {
     await saveStudySettings(next);
   };
 
-  // 选中词本的统计（不合并其它词本）
   const stats = useMemo(() => {
     if (!book) return null;
     const total = book.words.length;
@@ -45,22 +73,52 @@ export default function StatsScreen() {
     return { total, unlearned, mastered, accuracy, pct };
   }, [book]);
 
-  // 每日学习历史：按天分组，每天列出学过的单词及其变动状态
-  const dailyHistory = useMemo(() => {
-    if (!book) return [];
-    const map = new Map<string, HistoryItem[]>();
-    for (const w of book.words) {
-      for (const r of w.history ?? []) {
-        const day = formatDate(r.at);
-        const list = map.get(day) ?? [];
-        list.push({ term: w.term, result: r.result, box: r.box, at: r.at });
-        map.set(day, list);
+  // 每日学习历史：单词复习 + AI 答题，按天合并
+  const daily = useMemo(() => {
+    const map = new Map<string, DayActivity>();
+    if (book) {
+      for (const w of book.words) {
+        for (const r of w.history ?? []) {
+          const day = formatDate(r.at);
+          const d = map.get(day) ?? { day, words: [], attempts: [] };
+          d.words.push({ term: w.term, result: r.result, box: r.box, at: r.at });
+          map.set(day, d);
+        }
       }
     }
-    return Array.from(map.entries())
-      .map(([day, list]) => ({ day, list: list.sort((a, b) => b.at - a.at) }))
+    for (const a of aiq?.attempts ?? []) {
+      const day = formatDate(a.at);
+      const d = map.get(day) ?? { day, words: [], attempts: [] };
+      d.attempts.push(a);
+      map.set(day, d);
+    }
+    return Array.from(map.values())
+      .map((d) => ({
+        ...d,
+        words: d.words.sort((x, y) => y.at - x.at),
+        attempts: d.attempts.sort((x, y) => y.at - x.at),
+      }))
       .sort((a, b) => (a.day < b.day ? 1 : -1));
-  }, [book]);
+  }, [book, aiq]);
+
+  // AI 训练档案摘要
+  const aiqSummary = useMemo(() => {
+    if (!aiq) return null;
+    const total = aiq.attempts.length;
+    const correct = aiq.attempts.filter((a) => a.isCorrect).length;
+    const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+    const errMap = new Map<string, number>();
+    for (const a of aiq.attempts) {
+      if (!a.isCorrect && a.errorType) {
+        errMap.set(a.errorType, (errMap.get(a.errorType) ?? 0) + 1);
+      }
+    }
+    const weak = Array.from(errMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([t, c]) => `${ERROR_TYPE_LABEL[t as ErrorType] ?? t} ${c}次`);
+    return { total, correct, accuracy, weak, adviceCount: aiq.advice.length };
+  }, [aiq]);
 
   if (wordbooks.length === 0) {
     return (
@@ -76,7 +134,6 @@ export default function StatsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* 选择单词本（与学习页一致的弹窗选择方式） */}
       <View style={styles.bookSelectorWrap}>
         <BookSelector books={wordbooks} value={book} onChange={(id) => void selectBook(id)} />
       </View>
@@ -89,37 +146,103 @@ export default function StatsScreen() {
             <StatCard icon="checkmark-circle" label="已掌握" value={String(stats.mastered)} color={colors.success} />
             <StatCard icon="ribbon" label="正确率" value={stats.accuracy > 0 ? `${stats.accuracy}%` : '—'} color={colors.accent} />
           </View>
-
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${stats.pct}%` }]} />
           </View>
         </>
       ) : null}
 
-      {/* 每日学习历史 */}
+      {/* AI 训练档案 */}
+      <Text style={styles.sectionTitle}>AI 训练档案</Text>
+      {aiqSummary ? (
+        <View style={styles.aiqCard}>
+          <View style={styles.aiqRow}>
+            <Text style={styles.aiqLabel}>累计答题</Text>
+            <Text style={styles.aiqValue}>{aiqSummary.total} 题 · 正确率 {aiqSummary.accuracy}%</Text>
+          </View>
+          <View style={styles.aiqRow}>
+            <Text style={styles.aiqLabel}>学习建议</Text>
+            <Text style={styles.aiqValue}>{aiqSummary.adviceCount} 条</Text>
+          </View>
+          <View style={styles.aiqRow}>
+            <Text style={styles.aiqLabel}>近期薄弱点</Text>
+            <Text style={styles.aiqValue}>
+              {aiqSummary.weak.length > 0 ? aiqSummary.weak.join('、') : '暂无'}
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <Text style={styles.emptyHistory}>还没有 AI 训练记录，去「AI 出题」练一练吧</Text>
+      )}
+
+      {/* 每日学习历史（点击查看当天详情） */}
       <Text style={styles.sectionTitle}>每日学习历史</Text>
-      {dailyHistory.length === 0 ? (
+      {daily.length === 0 ? (
         <Text style={styles.emptyHistory}>还没有学习记录</Text>
       ) : (
-        dailyHistory.map(({ day, list }) => (
-          <View key={day} style={styles.dayCard}>
-            <Text style={styles.dayTitle}>
-              {day} · {list.length} 词
-            </Text>
-            {list.map((r, i) => {
-              const good = r.result === 'good';
-              return (
-                <View key={`${day}-${i}`} style={styles.historyRow}>
-                  <Text style={styles.historyTerm}>{r.term}</Text>
-                  <Text style={[styles.historyStatus, { color: good ? colors.success : colors.danger }]}>
-                    {good ? '✓ 答对' : '✗ 答错'} → {boxLabel(r.box)}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
+        daily.map((d) => (
+          <Pressable key={d.day} style={styles.dayRow} onPress={() => setSelectedDay(d)}>
+            <View style={styles.dayRowBody}>
+              <Text style={styles.dayRowTitle}>{d.day}</Text>
+              <Text style={styles.dayRowCount}>
+                学 {d.words.length} 词 · 答 {d.attempts.length} 题
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
+          </Pressable>
         ))
       )}
+
+      {/* 当天历史弹窗 */}
+      <Modal
+        visible={selectedDay !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedDay(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{selectedDay?.day} · 学习记录</Text>
+            <ScrollView style={styles.modalList}>
+              {selectedDay && selectedDay.words.length > 0 ? (
+                <Text style={styles.modalSubtitle}>单词学习</Text>
+              ) : null}
+              {selectedDay?.words.map((r, i) => {
+                const good = r.result === 'good';
+                return (
+                  <View key={`w-${i}`} style={styles.modalRow}>
+                    <Text style={styles.historyTerm}>{r.term}</Text>
+                    <Text style={[styles.historyStatus, { color: good ? colors.success : colors.danger }]}>
+                      {good ? '✓ 答对' : '✗ 答错'} → {boxLabel(r.box)}
+                    </Text>
+                  </View>
+                );
+              })}
+
+              {selectedDay && selectedDay.attempts.length > 0 ? (
+                <Text style={styles.modalSubtitle}>AI 答题</Text>
+              ) : null}
+              {selectedDay?.attempts.map((a, i) => {
+                const type = QUESTION_TYPE_LABEL[a.questionType] ?? a.questionType;
+                return (
+                  <View key={`a-${i}`} style={styles.modalRow}>
+                    <Text style={styles.attemptPrompt} numberOfLines={1}>
+                      [{type}] {a.prompt}
+                    </Text>
+                    <Text style={[styles.historyStatus, { color: a.isCorrect ? colors.success : colors.danger }]}>
+                      {a.isCorrect ? '✓' : '✗'}
+                      {!a.isCorrect && a.errorType
+                        ? ` ${ERROR_TYPE_LABEL[a.errorType as ErrorType] ?? ''}`
+                        : ''}
+                    </Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
+            <Button label="关闭" variant="outline" onPress={() => setSelectedDay(null)} />
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -186,16 +309,49 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   emptyHistory: { fontSize: 13, color: colors.textLight },
-  dayCard: {
+  aiqCard: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.md,
-    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  aiqRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
+  aiqLabel: { fontSize: 13, color: colors.textMuted },
+  aiqValue: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.text, textAlign: 'right' },
+  dayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  dayTitle: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
-  historyRow: {
+  dayRowBody: { flex: 1 },
+  dayRowTitle: { fontSize: 14, fontWeight: '700', color: colors.text },
+  dayRowCount: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  historyTerm: { fontSize: 15, fontWeight: '600', color: colors.text },
+  historyStatus: { fontSize: 13, fontWeight: '600' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    maxHeight: '85%',
+  },
+  modalTitle: { fontSize: 16, fontWeight: '800', color: colors.text, marginBottom: spacing.sm },
+  modalList: { flexShrink: 1, marginBottom: spacing.md },
+  modalSubtitle: { fontSize: 13, fontWeight: '700', color: colors.textMuted, marginTop: spacing.sm, marginBottom: spacing.xs },
+  modalRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -203,6 +359,5 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  historyTerm: { fontSize: 15, fontWeight: '600', color: colors.text },
-  historyStatus: { fontSize: 13, fontWeight: '600' },
+  attemptPrompt: { flex: 1, fontSize: 13, color: colors.textMuted, marginRight: spacing.sm },
 });
