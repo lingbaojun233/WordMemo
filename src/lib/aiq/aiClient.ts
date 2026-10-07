@@ -1,4 +1,5 @@
 import { AiConfig, completeText, extractJson } from '../ai';
+import { shuffle } from '../utils';
 import {
   AI_ERROR_TYPES,
   AI_ONLY_TYPES,
@@ -40,6 +41,23 @@ function coerceType(v: unknown): QuestionType {
   const s = String(v ?? '').trim() as QuestionType;
   const all: QuestionType[] = ['meaning', 'spelling', 'derivative', ...AI_ONLY_TYPES];
   return all.includes(s) ? s : 'cloze';
+}
+
+/** 选择题题型：必须带 options，否则 UI 会退化成填空（如「完形填空没选项」） */
+const CHOICE_TYPES: QuestionType[] = ['meaning', 'derivative', 'cloze', 'reading'];
+
+/** 兜底：AI 漏给/少给选项时，用正确答案 + 训练词做干扰项，保证选择题始终有选项 */
+function buildChoiceOptions(
+  correctAnswer: string,
+  words: { term: string; meaning: string }[]
+): string[] | undefined {
+  const correct = correctAnswer.trim();
+  if (!correct) return undefined;
+  const distractors = shuffle(
+    words.map((w) => w.term).filter((t) => normalize(t) !== normalize(correct))
+  ).slice(0, 3);
+  const opts = shuffle([correct, ...distractors]);
+  return opts.length >= 2 ? opts : undefined;
 }
 
 function difficultyHint(d: number): string {
@@ -163,9 +181,15 @@ ${injectionBlock}
 
     const type = coerceType(item?.type);
 
-    const options = Array.isArray(item?.options)
+    const parsedOptions = Array.isArray(item?.options)
       ? (item.options as unknown[]).map((o) => String(o)).filter((o) => o.length > 0)
       : [];
+    const options =
+      parsedOptions.length >= 2
+        ? parsedOptions
+        : CHOICE_TYPES.includes(type)
+        ? buildChoiceOptions(correctAnswer, words) ?? []
+        : [];
 
     const targetTerms = Array.isArray(item?.targetTerms)
       ? (item.targetTerms as unknown[]).map((t) => String(t).toLowerCase())

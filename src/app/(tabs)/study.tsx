@@ -126,16 +126,6 @@ export default function StudyTab() {
         style={{ alignSelf: 'stretch', marginTop: spacing.lg }}
       />
 
-      {/* AI 出题 · 导学模式（先易后难，5 词一组） */}
-      <Button
-        label="导学模式（5 词一组 · 先易后难）"
-        icon="sparkles"
-        variant="outline"
-        onPress={() => currentBook && router.push(`/wordbook/${currentBook.id}/guided`)}
-        disabled={!currentBook}
-        style={{ alignSelf: 'stretch', marginTop: spacing.md }}
-      />
-
       {/* 复习到期单词 */}
       <Button
         label={stats.dueCount > 0 ? `复习到期单词（${stats.dueCount} 个）` : '暂无到期单词'}
