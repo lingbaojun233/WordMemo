@@ -59,6 +59,9 @@ export default function ReadingScreen() {
   const chunkListRef = useRef<{ term: string; meaning: string }[][]>([]);
   const passageIdxRef = useRef(0);
   const restoredRef = useRef(false);
+  // 并发闸门：恢复上次会话 与 用户点「开始阅读」可能同时触发生成，
+  // 而对同一个本地模型上下文并发推理会让原生层直接抛异常
+  const generatingRef = useRef(false);
 
   useEffect(() => {
     loadStudySettings().then(setSettings);
@@ -109,22 +112,28 @@ export default function ReadingScreen() {
     level: string,
     initial: (GeneratedPassage | null)[]
   ) => {
+    if (generatingRef.current) return; // 已有一轮在跑，避免并发调用本地模型
+    generatingRef.current = true;
     const base = initial.slice();
-    for (let i = 0; i < chunks.length; i++) {
-      if (base[i]) continue;
-      try {
-        const p = await generatePassage({
-          config: cfg,
-          targetWords: chunks[i],
-          readerLevel: level,
-        });
-        base[i] = p;
-        setPassages([...base]);
-        persist(words, chunks, [...base], passageIdxRef.current);
-      } catch (e) {
-        // 单篇失败：记录错误并展示，继续尝试下一篇
-        setGenError(e instanceof Error ? e.message : String(e));
+    try {
+      for (let i = 0; i < chunks.length; i++) {
+        if (base[i]) continue;
+        try {
+          const p = await generatePassage({
+            config: cfg,
+            targetWords: chunks[i],
+            readerLevel: level,
+          });
+          base[i] = p;
+          setPassages([...base]);
+          persist(words, chunks, [...base], passageIdxRef.current);
+        } catch (e) {
+          // 单篇失败：记录错误并展示，继续尝试下一篇
+          setGenError(e instanceof Error ? e.message : String(e));
+        }
       }
+    } finally {
+      generatingRef.current = false;
     }
   };
 

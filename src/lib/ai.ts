@@ -150,7 +150,11 @@ export async function completeText(
   if (config.provider === 'online') {
     return chatCompletion(config.baseUrl, config.model, config.apiKey, prompt, opts);
   }
-  return generateWithDeviceModel(prompt, config.modelName, config.modelUrl);
+  // 端侧模型同样遵守调用方给的生成长度/温度（之前被忽略，出题等长输出会被截断）
+  return generateWithDeviceModel(prompt, config.modelName, config.modelUrl, {
+    maxTokens: opts?.maxTokens,
+    temperature: opts?.temperature,
+  });
 }
 
 export async function generatePassage(params: {
@@ -181,7 +185,8 @@ ${wordList}
 【输出格式】只输出一个 JSON 对象，不要输出任何其他文字：
 {"title":"文章标题","passage":"文章正文（目标单词用 [[ ]] 包裹）","glossary":[{"word":"目标单词","meaning":"中文释义"}]}`;
 
-  const content = await completeText(config, prompt, { temperature: 0.8 });
+  // 短文 + glossary 的 JSON 比较长，留足生成长度，避免被截断导致解析失败
+  const content = await completeText(config, prompt, { temperature: 0.8, maxTokens: 1024 });
 
   const parsed = extractJson(content) as Partial<GeneratedPassage>;
   if (!parsed.passage || typeof parsed.passage !== 'string') {
