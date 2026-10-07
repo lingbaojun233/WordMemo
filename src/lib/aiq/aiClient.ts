@@ -34,7 +34,10 @@ function normalize(s: string): string {
 
 function coerceErrorType(v: unknown): ErrorType {
   const s = String(v ?? '').trim();
-  return (ERROR_KEYS as string[]).includes(s) ? (s as ErrorType) : 'other';
+  if ((ERROR_KEYS as string[]).includes(s)) return s as ErrorType;
+  // 兼容 AI 直接输出中文标签（如「时态/语态」）的情况
+  const byLabel = ERROR_KEYS.find((k) => ERROR_TYPE_LABEL[k] === s);
+  return byLabel ?? 'other';
 }
 
 function coerceType(v: unknown): QuestionType {
@@ -392,7 +395,7 @@ function localTranslateScore(question: Question, userAnswer: string): GradeResul
     maxScore,
     breakdown,
     errorType: score >= 3 ? undefined : 'comprehension',
-    reason: score >= 3 ? '基本达意' : '译文与参考差异较大或未使用必用词',
+    reason: score >= 3 ? undefined : '译文与参考差异较大或未使用必用词',
   };
 }
 
@@ -425,12 +428,12 @@ ${rubricText}
 2. 学习者未使用必用词时，「正确使用必用词」点必须记 0 分。
 3. 意思基本准确即算对，不要求与参考译文逐字一致；小语法瑕疵不要整题判 0 分。
 4. 5 分表示与参考译文等价且语法正确；0 分表示完全无法达意或完全未使用必用词。
-5. reason 只说明扣分点/错误之处（不超过 40 字），满分（5 分）时留空字符串；严禁复述或称赞做对的部分，也不要讲解与扣分无关的知识；errorType 仅在 score < 5 时填写。
+5. reason 只写「扣分点」：直接指出错在哪儿、应怎么改（不超过 40 字）；满分（5 分）时留空字符串。严禁先肯定后转折、严禁提及任何做对或正确的部分——「必用词用对了，但时态错」「意思基本正确，只是…」这类写法都是错的；只能写错误本身，例如「时态错：have 应为 had」「未使用必用词 have」。errorType 仅在 score < 5 时填写，用等号左边的 key。
 
 【可选 errorType】${typeList}
 
 【输出】只输出 JSON，不要其他文字：
-{"score":4,"breakdown":[{"label":"正确使用必用词 have","got":2,"max":2},{"label":"语义准确完整","got":1,"max":2},{"label":"语法正确","got":1,"max":1}],"reason":"…","errorType":"语法用错"}`;
+{"score":4,"breakdown":[{"label":"正确使用必用词 have","got":2,"max":2},{"label":"语义准确完整","got":2,"max":2},{"label":"语法正确","got":0,"max":1}],"reason":"时态错：have 应为 had","errorType":"tense_voice"}`;
 
   try {
     const content = await completeText(config, prompt, { temperature: 0, maxTokens: 260 });
