@@ -20,7 +20,8 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.wordmemo.app"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -30,7 +31,14 @@
       "expo-router",
       "expo-status-bar",
       "expo-font",
-      "expo-build-properties",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "cmakeVersion": "3.30.5"
+          }
+        }
+      ],
       [
         "llama.rn",
         {
