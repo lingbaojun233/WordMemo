@@ -41,6 +41,7 @@ export default function ReadingScreen() {
   const [settings, setSettings] = useState<StudySettings | null>(null);
   const [phase, setPhase] = useState<Phase>('intro');
   const [error, setError] = useState<string | null>(null);
+  const [genError, setGenError] = useState<string | null>(null);
 
   const [targetWords, setTargetWords] = useState<Word[]>([]);
   const [passages, setPassages] = useState<(GeneratedPassage | null)[]>([]);
@@ -126,8 +127,9 @@ export default function ReadingScreen() {
         base[i] = p;
         setPassages([...base]);
         persist(words, chunks, [...base], passageIdxRef.current);
-      } catch {
-        // 单篇失败：跳过，继续下一篇
+      } catch (e) {
+        // 单篇失败：记录错误并展示，继续尝试下一篇
+        setGenError(e instanceof Error ? e.message : String(e));
       }
     }
   };
@@ -193,6 +195,7 @@ export default function ReadingScreen() {
     sessionKeyRef.current = { userId: currentUser.id, bookId: book.id };
     chunkListRef.current = chunks;
     setError(null);
+    setGenError(null);
     setTargetWords(words);
     setPassages(new Array(chunks.length).fill(null));
     setPassageIdx(0);
@@ -277,6 +280,9 @@ export default function ReadingScreen() {
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.generatingText}>正在生成第 {passageIdx + 1} 篇短文…</Text>
             <Text style={styles.generatingHint}>可稍等片刻，其它短文正在后台生成</Text>
+            {genError ? (
+              <Text style={styles.errorText}>生成失败：{genError}</Text>
+            ) : null}
           </View>
         </View>
       );

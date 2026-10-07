@@ -35,7 +35,7 @@ export type StudySettings = {
 const KEY = 'wordmemo:studySettings:v1';
 
 export const DEFAULT_SETTINGS: StudySettings = {
-  aiProvider: 'online',
+  aiProvider: 'device',
   aiApiKey: '',
   aiBaseUrl: 'https://api.deepseek.com',
   aiModel: 'deepseek-chat',
