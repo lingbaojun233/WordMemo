@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LEVEL_ORDER, LEVEL_SAMPLES, LevelKey, LevelWord, VOCAB_SIZES } from '../data/levelTestWords';
 import { loadStudySettings, saveStudySettings, StudySettings } from '../lib/studySettings';
+import { buildMeaningChoice } from '../lib/quiz';
 import { colors, radius, spacing } from '../lib/theme';
 import { Button } from '../components/ui';
 
@@ -67,27 +68,18 @@ function shuffle<T>(arr: T[]): T[] {
 
 // 随机出一道题：英译中 / 中译英，8 个选项，干扰项优先同词性。
 // queue 为当前级别尚未用于出题的词（按序取第一个作为本题目标词），确保同一级别不重复出同一个词。
+// 出题逻辑与其它模式的「选释义」共用 buildMeaningChoice。
 function makeQuestion(queue: LevelWord[], allWords: LevelWord[]): QuizQ {
   const target = queue[0];
   const pool = allWords.filter((w) => w.t !== target.t);
-  const samePos = pool.filter((w) => w.p === target.p);
-  const candidates = shuffle([...samePos, ...shuffle(pool)]);
-  const distractors: LevelWord[] = [];
-  const usedMeanings = new Set([target.m]);
-  for (const w of candidates) {
-    if (distractors.length >= 7) break;
-    if (usedMeanings.has(w.m)) continue;
-    usedMeanings.add(w.m);
-    distractors.push(w);
-  }
-
-  const e2c = Math.random() < 0.5;
-  if (e2c) {
-    const options = shuffle([target.m, ...distractors.map((d) => d.m)]);
-    return { direction: 'e2c', prompt: target.t, correct: target.m, options };
-  }
-  const options = shuffle([target.t, ...distractors.map((d) => d.t)]);
-  return { direction: 'c2e', prompt: target.m, correct: target.t, options };
+  const direction: Direction = Math.random() < 0.5 ? 'e2c' : 'c2e';
+  const c = buildMeaningChoice(
+    { term: target.t, meaning: target.m, pos: target.p },
+    pool.map((w) => ({ term: w.t, meaning: w.m, pos: w.p })),
+    8,
+    direction
+  );
+  return { direction: c.direction, prompt: c.prompt, correct: c.correct, options: c.options };
 }
 
 export default function LevelTestScreen() {

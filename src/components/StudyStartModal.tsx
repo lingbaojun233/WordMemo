@@ -105,6 +105,18 @@ export function StudyStartModal({
                 </View>
               ))}
             </View>
+
+            {/* 分组设置 */}
+            <Text style={styles.sectionLabel}>分组设置</Text>
+            <View style={styles.section}>
+              <Stepper
+                label="每组分词数"
+                value={settings.groupSize ?? 5}
+                min={3}
+                max={30}
+                onChange={(v) => onChange({ groupSize: v })}
+              />
+            </View>
           </ScrollView>
 
           <View style={styles.actions}>

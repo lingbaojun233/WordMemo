@@ -28,8 +28,8 @@ import {
 } from '../../../lib/readingSession';
 import { colors, radius, spacing } from '../../../lib/theme';
 import { Word } from '../../../lib/types';
-import { shuffle } from '../../../lib/utils';
 import { dailyPlan } from '../../../lib/goal';
+import { todayNewWords } from '../../../lib/dailyPool';
 import { Button } from '../../../components/ui';
 import { LEVEL_SAMPLES } from '../../../data/levelTestWords';
 
@@ -82,12 +82,10 @@ export default function ReadingScreen() {
 
   const remaining = daily?.remaining ?? 0;
 
-  // 本次要学的新词（box 0）
+  // 本次要学的新词（box 0），与其它学习模式共用「今日新词池」
   const targetCandidates = useMemo(() => {
     if (!book || !settings || remaining <= 0) return [];
-    const newWords = book.words.filter((w) => w.box === 0);
-    const ordered = settings.pickMode === 'random' ? shuffle(newWords) : newWords;
-    return ordered.slice(0, remaining);
+    return todayNewWords(book.words, settings.pickMode, remaining, book.id);
   }, [book, settings, remaining]);
 
   // 分篇：每篇 wordsPerPassage 个新词

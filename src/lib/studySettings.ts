@@ -19,6 +19,7 @@ export type StudySettings = {
   deviceModelUrl: string; // 设备端 GGUF 模型下载地址（HuggingFace）
   deviceModelName: string; // 设备端模型名（文件命名/展示）
   wordsPerPassage: number; // 平均每篇短文多少个新词
+  groupSize: number; // 每组分词数（先背诵后测验按此分组）
   pickMode: PickMode; // 单词选取方式：按顺序 / 随机
   level: LevelKey | null; // 词汇水平（来自测验，null 表示未测）
   vocab: number | null; // 精确估测词汇量（含未通过级别的部分词汇，null 表示未测）
@@ -43,6 +44,7 @@ export const DEFAULT_SETTINGS: StudySettings = {
     'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf',
   deviceModelName: 'qwen2.5-0.5b-instruct-q4_k_m',
   wordsPerPassage: 8,
+  groupSize: 5,
   pickMode: 'sequential',
   level: null,
   vocab: null,

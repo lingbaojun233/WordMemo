@@ -1,6 +1,6 @@
 import { Word } from '../types';
 import { shuffle } from '../utils';
-import { posOf } from '../quiz';
+import { buildMeaningChoice } from '../quiz';
 import { Question, QuestionType } from './types';
 
 // 本地基础出题：完全离线、同步计算（毫秒级），作为「本地优先」的兜底与热身题。
@@ -12,28 +12,16 @@ function qid(): string {
   return `lq_${Date.now().toString(36)}_${seq}`;
 }
 
-/** 选释义（同词性干扰项优先） */
+/** 选释义（同词性干扰项优先）——与其它模式的选释义共用 buildMeaningChoice */
 function meaningQuestion(w: Word, pool: Word[], optionCount = 4): Question {
-  const targetPos = posOf(w.meaning);
   const others = pool.filter((x) => x.term.toLowerCase() !== w.term.toLowerCase());
-  const samePos = shuffle(others.filter((x) => posOf(x.meaning) === targetPos));
-  const rest = shuffle(others.filter((x) => posOf(x.meaning) !== targetPos));
-
-  const chosen: string[] = [];
-  const used = new Set<string>([w.meaning]);
-  for (const c of [...samePos, ...rest]) {
-    if (chosen.length >= optionCount - 1) break;
-    if (used.has(c.meaning)) continue;
-    used.add(c.meaning);
-    chosen.push(c.meaning);
-  }
-
+  const c = buildMeaningChoice({ term: w.term, meaning: w.meaning }, others, optionCount, 'e2c');
   return {
     id: qid(),
     type: 'meaning',
     source: 'local',
     prompt: w.term,
-    options: shuffle([w.meaning, ...chosen]),
+    options: c.options,
     correctAnswer: w.meaning,
     targetTerms: [w.term.toLowerCase()],
     difficulty: 0.3,

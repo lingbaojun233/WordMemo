@@ -7,11 +7,9 @@ import { buildQuiz, QuizQuestion } from '../../../lib/quiz';
 import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
 import { colors, radius, spacing } from '../../../lib/theme';
 import { Word } from '../../../lib/types';
-import { shuffle } from '../../../lib/utils';
 import { dailyPlan } from '../../../lib/goal';
+import { todayNewWords } from '../../../lib/dailyPool';
 import { Button, EmptyState } from '../../../components/ui';
-
-const GROUP_SIZE = 5; // 每 5 个单词为一组：先背诵一组，再测验一组
 
 type Phase = 'intro' | 'study' | 'done';
 type SubPhase = 'memorize' | 'quiz';
@@ -42,23 +40,22 @@ export default function StudyScreen() {
   }, [book, settings, wordbooks]);
 
   const remaining = daily?.remaining ?? 0;
+  const groupSize = Math.max(1, settings?.groupSize ?? 5);
 
-  // 本次要学的新词（box 0，尚未学会），最多 remaining 个
+  // 本次要学的新词（box 0，尚未学会），最多 remaining 个；与其它学习模式共用「今日新词池」
   const selected = useMemo(() => {
     if (!book || !settings || remaining <= 0) return [];
-    const newWords = book.words.filter((w) => w.box === 0);
-    const ordered = settings.pickMode === 'random' ? shuffle(newWords) : newWords;
-    return ordered.slice(0, remaining);
+    return todayNewWords(book.words, settings.pickMode, remaining, book.id);
   }, [book, settings, remaining]);
 
-  // 分组（每 5 个一组）——基于本次会话冻结的单词列表，避免答题后实时派生导致错位
+  // 分组（每组 groupSize 个）——基于本次会话冻结的单词列表，避免答题后实时派生导致错位
   const groups = useMemo(() => {
     const g: Word[][] = [];
-    for (let i = 0; i < sessionWords.length; i += GROUP_SIZE) {
-      g.push(sessionWords.slice(i, i + GROUP_SIZE));
+    for (let i = 0; i < sessionWords.length; i += groupSize) {
+      g.push(sessionWords.slice(i, i + groupSize));
     }
     return g;
-  }, [sessionWords]);
+  }, [sessionWords, groupSize]);
 
   if (!book) {
     return (
@@ -82,7 +79,7 @@ export default function StudyScreen() {
 
   const currentGroup = groups[groupIdx] ?? [];
   const currentWord = currentGroup[subIdx];
-  const currentQ = quiz[groupIdx * GROUP_SIZE + subIdx] ?? null;
+  const currentQ = quiz[groupIdx * groupSize + subIdx] ?? null;
 
   const start = () => {
     // 冻结本次会话要学的单词与题目，避免答题过程中 book 变化导致 selected 重算而错位
@@ -145,10 +142,10 @@ export default function StudyScreen() {
             <>
               <Text style={styles.title}>今日还需学习 {remaining} 词</Text>
               <Text style={styles.subDesc}>
-                共 {Math.ceil(selected.length / GROUP_SIZE)} 组 · 每组 {GROUP_SIZE} 词 · 先背诵后测验
+                共 {Math.ceil(selected.length / groupSize)} 组 · 每组 {groupSize} 词 · 先背诵后测验
               </Text>
               <Text style={styles.desc}>
-                每次先背诵一组 {GROUP_SIZE} 个单词，再对它们进行测验。选对升一级，选错保持不变
+                每次先背诵一组 {groupSize} 个单词，再对它们进行测验。选对升一级，选错保持不变
               </Text>
               <Button label="开始学习" icon="play" onPress={start} style={{ alignSelf: 'stretch' }} />
             </>
