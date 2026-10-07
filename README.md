@@ -1,4 +1,4 @@
-# 背单词 · WordMemo
+# WordMemo
 
 一个专注于**英语单词背诵**的移动端 App（React Native + Expo + TypeScript）。
 

@@ -56,7 +56,7 @@ export default function LoginScreen() {
             <View style={styles.logo}>
               <Ionicons name="book" size={44} color={colors.primary} />
             </View>
-            <Text style={styles.title}>背单词</Text>
+            <Text style={styles.title}>WordMemo</Text>
             <Text style={styles.subtitle}>专注英语单词背诵 · 数据本地保存</Text>
           </View>
 

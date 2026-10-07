@@ -53,7 +53,7 @@ export default function StatsScreen() {
         <EmptyState
           icon="stats-chart-outline"
           title="暂无数据"
-          description="开始背单词后，这里会展示你的学习统计"
+          description="开始学习后，这里会展示你的学习统计"
         />
       </View>
     );
