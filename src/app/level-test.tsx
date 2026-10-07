@@ -314,8 +314,7 @@ export default function LevelTestScreen() {
           <View style={[styles.progressFill, { width: `${pct}%` }]} />
         </View>
         <Text style={styles.progressText}>
-          {correct}/{total}
-          {additional ? '（追加）' : ''}
+          {`${correct}/${total}${additional ? '（追加）' : ''}`}
         </Text>
       </View>
 

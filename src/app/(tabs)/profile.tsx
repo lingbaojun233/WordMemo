@@ -53,7 +53,7 @@ export default function ProfileScreen() {
         </View>
         <Text style={styles.username}>{currentUser?.username}</Text>
         <Text style={styles.since}>
-          {currentUser ? `注册于 ${formatDate(currentUser.createdAt)}` : ''}
+          {currentUser ? `注册于 ${formatDate(currentUser.createdAt)}` : '\u00A0'}
         </Text>
       </View>
 

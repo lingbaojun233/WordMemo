@@ -243,7 +243,7 @@ export default function SettingsScreen() {
             ) : modelInfo?.downloaded ? (
               <View style={styles.downloadBox}>
                 <Text style={styles.helper}>
-                  已就绪{modelInfo.size ? ` · ${formatMB(modelInfo.size)}` : ''}
+                  {`已就绪${modelInfo.size ? ` · ${formatMB(modelInfo.size)}` : ''}`}
                 </Text>
                 <Pressable style={styles.deleteBtn} onPress={removeModel}>
                   <Ionicons name="trash-outline" size={14} color={colors.danger} />

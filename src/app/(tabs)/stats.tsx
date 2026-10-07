@@ -230,10 +230,11 @@ export default function StatsScreen() {
                       [{type}] {a.prompt}
                     </Text>
                     <Text style={[styles.historyStatus, { color: a.isCorrect ? colors.success : colors.danger }]}>
-                      {a.isCorrect ? '✓' : '✗'}
-                      {!a.isCorrect && a.errorType
-                        ? ` ${ERROR_TYPE_LABEL[a.errorType as ErrorType] ?? ''}`
-                        : ''}
+                      {`${a.isCorrect ? '✓' : '✗'}${
+                        !a.isCorrect && a.errorType
+                          ? ` ${ERROR_TYPE_LABEL[a.errorType as ErrorType] ?? ''}`
+                          : ''
+                      }`}
                     </Text>
                   </View>
                 );

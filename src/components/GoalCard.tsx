@@ -94,9 +94,8 @@ export function GoalCard({
 
       {plan.mode === 'deadline' && plan.deadlineAt != null ? (
         <Text style={styles.line}>
-          截止日期：
-          <Text style={styles.strong}>{plan.deadlineText}</Text>
-          {finished ? '（已完成）' : `（还剩 ${plan.remainingDays} 天）`}
+          截止日期：<Text style={styles.strong}>{plan.deadlineText}</Text>
+          {`${finished ? '（已完成）' : `（还剩 ${plan.remainingDays} 天）`}`}
         </Text>
       ) : (
         <Text style={styles.line}>
@@ -105,15 +104,19 @@ export function GoalCard({
       )}
 
       <Text style={styles.line}>
-        今日需学 <Text style={styles.strong}>{plan.dailyTarget}</Text> 词（今天已学 {plan.studiedToday}
-        {plan.studiedToday >= plan.dailyTarget ? '，今日目标已达标' : ''}）
+        今日需学 <Text style={styles.strong}>{plan.dailyTarget}</Text> 词（
+        {/* 注意：条件拼接必须放在模板字符串里，不能直接把 `? '文字' : ''` 当子节点——
+            react-native-web 会在空串与文字之间切换时做 DOM 插入并直接抛 insertBefore 错误 */}
+        {`今天已学 ${plan.studiedToday}${
+          plan.studiedToday >= plan.dailyTarget ? '，今日目标已达标' : ''
+        }）`}
       </Text>
 
       {/* 连续学习 / 中断提示 */}
       {plan.streak > 0 ? (
         <Text style={styles.line}>
           已连续学习 <Text style={[styles.strong, { color: colors.success }]}>{plan.streak}</Text> 天
-          {plan.missedDays > 0 ? `（最近一次学习在 ${plan.missedDays} 天前）` : '（今天已打卡）'}
+          {`${plan.missedDays > 0 ? `（最近一次学习在 ${plan.missedDays} 天前）` : '（今天已打卡）'}`}
         </Text>
       ) : plan.missedDays > 0 ? (
         <Text style={styles.line}>

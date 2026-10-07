@@ -51,8 +51,10 @@ export default function HomeScreen() {
                 {item.name}
               </Text>
               <Text style={styles.cardMeta}>
-                {total} 词 · 已掌握 {mastered}
-                {total > 0 ? (due > 0 ? ` · 待复习 ${due}` : ' · 已完成') : ''}
+                {/* 条件拼接必须放进模板字符串：直接当子节点会在「空串↔文字」切换时触发 RN Web 的 insertBefore 崩溃 */}
+                {`${total} 词 · 已掌握 ${mastered}${
+                  total > 0 ? (due > 0 ? ` · 待复习 ${due}` : ' · 已完成') : ''
+                }`}
               </Text>
             </View>
           </View>
