@@ -136,6 +136,11 @@ export async function generateAiQuestions(params: {
   const wantTypes = types.filter((t) => AI_ONLY_TYPES.includes(t));
   const effective = wantTypes.length > 0 ? wantTypes : AI_ONLY_TYPES.slice(0, 2);
 
+  // 设备端小模型出题能力弱、推理慢：少出几道、少生成一些，避免又慢又跑偏
+  const isDevice = config.provider === 'device';
+  const actualCount = isDevice ? Math.min(count, 3) : count;
+  const maxTokens = isDevice ? 900 : 1800;
+
   const wordList = words.map((w) => `- ${w.term}（${w.meaning}）`).join('\n');
   const typeList = effective.map((t) => `${t}（${QUESTION_TYPE_LABEL[t]}）`).join('、');
 
@@ -150,7 +155,7 @@ export async function generateAiQuestions(params: {
 ${wordList}
 
 【目标难度】${difficultyHint(difficulty)}。
-【题型】只使用这些题型：${typeList}。共出 ${count} 道题。
+【题型】只使用这些题型：${typeList}。共出 ${actualCount} 道题。
 ${injectionBlock}
 【出题要求】
 1. 难度「刚刚好超出」学习者当前水平：用已掌握词汇做背景，只考查少量新词/易错点。
@@ -162,6 +167,7 @@ ${injectionBlock}
 7. 翻译：给出一句中文，要求译为英文；必须指定 1~2 个必用词（必须来自【本次训练单词】，写入 requiredTerms），学习者答案必须用到这些词；必须自行为本题划分给分点 rubric（每个点含 label 与 max，所有 max 之和必须恰好等于 5，且必须包含「正确使用必用词」这一点），correctAnswer 给参考译文（必须包含必用词）。
 8. correctAnswer 必须与 options 中的某一项完全一致（仅选择题；语法填空/翻译题无 options）。
 9. targetTerms 填该题实际考查的单词（小写，来自上面的训练单词）。
+10. 必须围绕【本次训练单词】出题；下面的示例仅供 JSON 格式参考，严禁照抄示例内容（不要出现 have / apple 等与训练单词无关的内容）。
 
 【输出格式】只输出一个 JSON 对象，不要任何额外文字：
 {"questions":[
@@ -169,10 +175,11 @@ ${injectionBlock}
   {"type":"translation","prompt":"请把下面这句话翻译成英文：我有一个苹果。","requiredTerms":["have"],"correctAnswer":"I have an apple.","rubric":[{"label":"正确使用必用词 have","max":2},{"label":"语义准确完整","max":2},{"label":"语法正确","max":1}],"explanation":"…","targetTerms":["have"]}
 ]}`;
 
-  const content = await completeText(config, prompt, { temperature: 0.85, maxTokens: 1800 });
+  const content = await completeText(config, prompt, { temperature: 0.85, maxTokens });
   const parsed = extractJson(content) as { questions?: unknown };
   const raw = Array.isArray(parsed?.questions) ? parsed.questions : [];
 
+  const wordSet = new Set(words.map((w) => w.term.toLowerCase()));
   const out: Question[] = [];
   for (const item of raw as Record<string, unknown>[]) {
     const promptText = String(item?.prompt ?? '').trim();
@@ -180,6 +187,7 @@ ${injectionBlock}
     if (!promptText || !correctAnswer) continue;
 
     const type = coerceType(item?.type);
+    const passage = String(item?.passage ?? '').trim() || undefined;
 
     const parsedOptions = Array.isArray(item?.options)
       ? (item.options as unknown[]).map((o) => String(o)).filter((o) => o.length > 0)
@@ -191,9 +199,25 @@ ${injectionBlock}
         ? buildChoiceOptions(correctAnswer, words) ?? []
         : [];
 
-    const targetTerms = Array.isArray(item?.targetTerms)
+    const rawTargets = Array.isArray(item?.targetTerms)
       ? (item.targetTerms as unknown[]).map((t) => String(t).toLowerCase())
       : [];
+
+    // 只保留真正考查训练词的题：先看 AI 给的 targetTerms，再看题目内容里命中的训练词；
+    // 都不中（如小模型照抄了示例 have/apple）则丢弃
+    const contentText = `${promptText} ${passage ?? ''} ${correctAnswer}`.toLowerCase();
+    const targetTerms = (() => {
+      const hit = rawTargets.filter((t) => wordSet.has(t));
+      if (hit.length > 0) return Array.from(new Set(hit));
+      return Array.from(
+        new Set(
+          words
+            .filter((w) => contentText.includes(w.term.toLowerCase()))
+            .map((w) => w.term.toLowerCase())
+        )
+      );
+    })();
+    if (targetTerms.length === 0) continue;
 
     const requiredTerms = Array.isArray(item?.requiredTerms)
       ? (item.requiredTerms as unknown[])
@@ -206,26 +230,28 @@ ${injectionBlock}
       type,
       source: 'ai',
       prompt: promptText,
-      passage: String(item?.passage ?? '').trim() || undefined,
+      passage,
       options: options.length >= 2 ? options : undefined,
       correctAnswer,
       explanation: String(item?.explanation ?? '').trim() || undefined,
-      targetTerms: targetTerms.length > 0 ? targetTerms : words.map((w) => w.term.toLowerCase()),
+      targetTerms,
       difficulty,
     };
 
     if (type === 'translation') {
-      // 必用词兜底：AI 漏给时取目标单词；给分点缺省或分值不对时归一化为合计 5 分
-      question.requiredTerms =
-        requiredTerms.length > 0 ? requiredTerms : question.targetTerms.slice(0, 1);
+      // 必用词只保留训练词；AI 漏给或乱给时回退到目标单词
+      const relReq = requiredTerms.filter((t) => wordSet.has(t));
+      question.requiredTerms = relReq.length > 0 ? relReq : question.targetTerms.slice(0, 1);
       question.rubric = normalizeRubric(item?.rubric, question.requiredTerms);
     }
 
     out.push(question);
-    if (out.length >= count) break;
+    if (out.length >= actualCount) break;
   }
 
-  if (out.length === 0) throw new Error('AI 未能生成有效题目，请重试');
+  if (out.length === 0) {
+    throw new Error('AI 未能生成与本次单词相关的题目，请重试');
+  }
   return out;
 }
 
