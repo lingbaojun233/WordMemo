@@ -102,7 +102,8 @@ export function buildLocalQuestions(
   let guard = 0;
   while (out.length < count && guard < count * 6 && words.length > 0) {
     const w = words[i % words.length];
-    const kind = kinds[(i + guard) % kinds.length];
+    // 按已生成题数轮流取题型，避免同一个单词重复出同一种题（如选释义出现两次）
+    const kind = kinds[out.length % kinds.length];
     i++;
     guard++;
 
