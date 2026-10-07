@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, Stack } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, Stack, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,6 +19,7 @@ import {
   downloadDeviceModel,
   getDeviceModelInfo,
   isDeviceModelSupported,
+  MODEL_PRESETS,
 } from '../lib/localModel';
 import { AiProvider, loadStudySettings, saveStudySettings, StudySettings } from '../lib/studySettings';
 import { colors, radius, spacing } from '../lib/theme';
@@ -41,10 +43,14 @@ export default function SettingsScreen() {
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [modelMsg, setModelMsg] = useState<string | null>(null);
+  const [showModelPicker, setShowModelPicker] = useState(false);
 
-  useEffect(() => {
-    loadStudySettings().then(setSettings);
-  }, []);
+  // 每次获得焦点都重新读取，确保词汇测验后水平/词汇量刷新
+  useFocusEffect(
+    useCallback(() => {
+      loadStudySettings().then(setSettings);
+    }, [])
+  );
 
   // 切到设备端模型时刷新模型下载状态
   const aiProvider = settings?.aiProvider;
@@ -114,6 +120,7 @@ export default function SettingsScreen() {
 
   const levelLabel =
     LEVEL_SAMPLES.find((s) => s.level === settings.level)?.label ?? '未测验';
+  const selectedPreset = MODEL_PRESETS.find((p) => p.name === settings.deviceModelName);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -188,34 +195,42 @@ export default function SettingsScreen() {
           </Text>
         ) : (
           <>
-            <Text style={styles.label}>模型名</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="qwen2.5-1.5b-instruct-q4_k_m"
-              placeholderTextColor={colors.textLight}
-              value={settings.deviceModelName}
-              onChangeText={(v) => update({ deviceModelName: v.trim() })}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+            <Text style={styles.label}>选择模型</Text>
+            <Pressable style={styles.modelSelect} onPress={() => setShowModelPicker(true)}>
+              <Text style={styles.modelSelectText}>
+                {selectedPreset ? `${selectedPreset.label} · ${selectedPreset.size}` : '自定义模型'}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={colors.textLight} />
+            </Pressable>
 
-            <Text style={styles.label}>模型下载地址（GGUF）</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="https://huggingface.co/.../model.gguf"
-              placeholderTextColor={colors.textLight}
-              value={settings.deviceModelUrl}
-              onChangeText={(v) => update({ deviceModelUrl: v.trim() })}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <Text style={styles.helper}>
-              模型直接运行在手机本地，无需服务器、无需联网。首次使用需下载约 1GB。
-              推荐：qwen2.5-1.5b-instruct-q4_k_m（约 1GB，推荐）、
-              qwen2.5-0.5b-instruct-q4_k_m（约 400MB，最低配）、
-              qwen2.5-3b-instruct-q4_k_m（约 2GB，效果更好）。
-            </Text>
+            {selectedPreset ? (
+              <Text style={styles.helper}>
+                模型直接运行在手机本地，无需联网。点击下方「下载模型」即可安装，模型越大效果越好、占用越大。
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.label}>模型名</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="my-model"
+                  placeholderTextColor={colors.textLight}
+                  value={settings.deviceModelName}
+                  onChangeText={(v) => update({ deviceModelName: v.trim() })}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Text style={styles.label}>模型下载地址（GGUF）</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="https://huggingface.co/.../model.gguf"
+                  placeholderTextColor={colors.textLight}
+                  value={settings.deviceModelUrl}
+                  onChangeText={(v) => update({ deviceModelUrl: v.trim() })}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </>
+            )}
 
             {/* 下载 / 状态 */}
             {downloading ? (
@@ -286,6 +301,54 @@ export default function SettingsScreen() {
           根据测验结果，生成短文时除目标生词外，只使用该水平及以下的词汇，保证你能读懂
         </Text>
       </View>
+
+      {/* 模型选择弹窗 */}
+      <Modal
+        visible={showModelPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowModelPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>选择要安装的模型</Text>
+            {MODEL_PRESETS.map((p) => (
+              <Pressable
+                key={p.name}
+                style={styles.modelRow}
+                onPress={() => {
+                  update({ deviceModelName: p.name, deviceModelUrl: p.url });
+                  setShowModelPicker(false);
+                }}
+              >
+                <View style={styles.modelRowBody}>
+                  <Text style={styles.modelRowName}>{p.label}</Text>
+                  <Text style={styles.modelRowSize}>{p.size}</Text>
+                </View>
+                {p.name === settings.deviceModelName ? (
+                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                ) : null}
+              </Pressable>
+            ))}
+            <View style={styles.modalDivider} />
+            <Pressable
+              style={styles.modelRow}
+              onPress={() => {
+                update({ deviceModelName: '', deviceModelUrl: '' });
+                setShowModelPicker(false);
+              }}
+            >
+              <View style={styles.modelRowBody}>
+                <Text style={styles.modelRowName}>自定义模型</Text>
+                <Text style={styles.modelRowSize}>手动输入模型名与下载地址</Text>
+              </View>
+              {!selectedPreset ? (
+                <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+              ) : null}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -392,4 +455,40 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   testBtnText: { fontSize: 14, fontWeight: '600', color: colors.primary },
+  modelSelect: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    marginBottom: spacing.xs,
+  },
+  modelSelectText: { fontSize: 15, color: colors.text },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
+  modalTitle: { fontSize: 17, fontWeight: '800', color: colors.text, marginBottom: spacing.sm },
+  modelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modelRowBody: { flex: 1 },
+  modelRowName: { fontSize: 15, fontWeight: '600', color: colors.text },
+  modelRowSize: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  modalDivider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.sm },
 });

@@ -32,8 +32,8 @@ const MODES: {
     key: 'ai_questions',
     icon: 'create',
     title: 'AI 出题，学习后答题',
-    desc: '敬请期待，后续版本推出',
-    enabled: false,
+    desc: 'AI 按你的薄弱点针对性出题，答错自动归因并生成改进建议',
+    enabled: true,
   },
 ];
 

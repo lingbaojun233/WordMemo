@@ -74,6 +74,8 @@ export default function StudyTab() {
       router.push(`/wordbook/${currentBook.id}/study`);
     } else if (mode === 'ai_reading') {
       router.push(`/wordbook/${currentBook.id}/reading`);
+    } else if (mode === 'ai_questions') {
+      router.push(`/wordbook/${currentBook.id}/questions`);
     }
   };
 
@@ -193,11 +195,26 @@ export default function StudyTab() {
 
       {/* 开始学习 */}
       <Button
-        label="开始学习"
+        label={
+          mode === 'ai_reading'
+            ? '开始阅读学习'
+            : mode === 'ai_questions'
+            ? '开始 AI 出题'
+            : '开始学习'
+        }
         icon="play"
         onPress={handleStart}
-        disabled={!currentBook || mode === 'ai_questions'}
-        style={{ marginTop: spacing.lg }}
+        disabled={!currentBook}
+        style={{ alignSelf: 'stretch', marginTop: spacing.lg }}
+      />
+
+      {/* AI 训练档案 */}
+      <Button
+        label="AI 训练档案（错题归因 / 提示词库 / A-B）"
+        icon="analytics"
+        variant="outline"
+        onPress={() => router.push('/ai-training')}
+        style={{ alignSelf: 'stretch', marginTop: spacing.md }}
       />
 
       {/* 复习到期单词 */}
@@ -207,7 +224,7 @@ export default function StudyTab() {
         variant="outline"
         onPress={startReview}
         disabled={!currentBook || stats.dueCount === 0}
-        style={{ marginTop: spacing.md }}
+        style={{ alignSelf: 'stretch', marginTop: spacing.md }}
       />
 
       {/* 学习设置 */}
@@ -216,7 +233,7 @@ export default function StudyTab() {
         icon="settings"
         variant="ghost"
         onPress={() => setShowStartModal(true)}
-        style={{ marginTop: spacing.md }}
+        style={{ alignSelf: 'stretch', marginTop: spacing.md }}
       />
 
       <StudyStartModal
@@ -386,13 +403,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepInput: {
-    minWidth: 56,
-    height: 34,
+    minWidth: 80,
+    height: 36,
     paddingHorizontal: 8,
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
+    textAlignVertical: 'center',
     backgroundColor: colors.card,
     borderRadius: radius.sm,
     borderWidth: 1,

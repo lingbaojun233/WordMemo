@@ -40,6 +40,35 @@ export type DeviceModelInfo = {
   size?: number;
 };
 
+/** 可选安装的预设模型 */
+export type ModelPreset = {
+  name: string; // 文件名（不含扩展名）
+  url: string; // GGUF 下载地址
+  label: string; // 显示名
+  size: string; // 大小描述
+};
+
+export const MODEL_PRESETS: ModelPreset[] = [
+  {
+    name: 'qwen2.5-0.5b-instruct-q4_k_m',
+    url: 'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf',
+    label: '0.5B · 最低配',
+    size: '约 400MB',
+  },
+  {
+    name: 'qwen2.5-1.5b-instruct-q4_k_m',
+    url: 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
+    label: '1.5B · 推荐',
+    size: '约 1GB',
+  },
+  {
+    name: 'qwen2.5-3b-instruct-q4_k_m',
+    url: 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
+    label: '3B · 效果更好',
+    size: '约 2GB',
+  },
+];
+
 export async function getDeviceModelInfo(name: string): Promise<DeviceModelInfo> {
   const path = modelPath(name);
   try {

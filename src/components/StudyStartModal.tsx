@@ -14,7 +14,7 @@ const MODES: {
 }[] = [
   { key: 'memorize_quiz', icon: 'albums', title: '先背诵后测验', enabled: true },
   { key: 'ai_reading', icon: 'newspaper', title: 'AI 写短文，阅读后测验', enabled: true },
-  { key: 'ai_questions', icon: 'create', title: 'AI 出题，学习后答题', enabled: false },
+  { key: 'ai_questions', icon: 'create', title: 'AI 出题，学习后答题', enabled: true },
 ];
 
 const PICK_MODES: { key: PickMode; title: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -219,13 +219,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepInput: {
-    minWidth: 56,
-    height: 34,
+    minWidth: 80,
+    height: 36,
     paddingHorizontal: 8,
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
+    textAlignVertical: 'center',
     backgroundColor: colors.card,
     borderRadius: radius.sm,
     borderWidth: 1,

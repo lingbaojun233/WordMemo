@@ -72,7 +72,7 @@ export function parsePassage(
 }
 
 /** 从模型返回内容中稳健地提取 JSON 对象 */
-function extractJson(content: string): unknown {
+export function extractJson(content: string): unknown {
   const text = content.trim();
   // 去掉 markdown 代码块
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -90,7 +90,7 @@ function extractJson(content: string): unknown {
   }
 }
 
-const LEVEL_DESC: Record<string, string> = {
+export const LEVEL_DESC: Record<string, string> = {
   junior: '初中及以下',
   senior: '高中（高考）及以下',
   cet4: '四级及以下',
@@ -142,7 +142,7 @@ async function chatCompletion(
 }
 
 /** 按配置分发到联网或设备端模型，返回补全文本 */
-async function completeText(
+export async function completeText(
   config: AiConfig,
   prompt: string,
   opts?: { temperature?: number; maxTokens?: number }
