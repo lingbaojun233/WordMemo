@@ -21,6 +21,7 @@ export type ErrorType =
   | 'comprehension' // 理解偏差
   | 'collocation' // 搭配错误
   | 'tense_voice' // 时态/语态
+  | 'unknown' // 未掌握：学习者主动选「不会」，不做 AI 归因，避免乱填造成误判
   | 'other'; // 其它
 
 export const ERROR_TYPE_LABEL: Record<ErrorType, string> = {
@@ -30,8 +31,20 @@ export const ERROR_TYPE_LABEL: Record<ErrorType, string> = {
   comprehension: '理解偏差',
   collocation: '搭配错误',
   tense_voice: '时态/语态',
+  unknown: '未掌握',
   other: '其它',
 };
+
+/** 交给 AI 归因时可选的类型（'unknown' 由「不会」按钮直接产生，不让 AI 猜） */
+export const AI_ERROR_TYPES: ErrorType[] = [
+  'meaning_confusion',
+  'spelling',
+  'grammar',
+  'comprehension',
+  'collocation',
+  'tense_voice',
+  'other',
+];
 
 export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
   meaning: '选释义',

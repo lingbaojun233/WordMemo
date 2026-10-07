@@ -24,6 +24,7 @@ import {
   buildSession,
   finishSession,
   gradeAnswer,
+  unknownResult,
   SessionOptions,
   SessionOrder,
   SessionPlan,
@@ -169,6 +170,23 @@ export default function AiQuestionsScreen() {
     } finally {
       setGrading(false);
     }
+  };
+
+  /** 主动选「不会」：记为未掌握，不做 AI 归因（避免乱填带偏错因分析） */
+  const submitUnknown = async () => {
+    if (!q || grading || feedback) return;
+    const result = unknownResult();
+    setPicked(null);
+    setFeedback(result);
+    await update(
+      applyAnswer({
+        state,
+        question: q,
+        userAnswer: '（不会）',
+        result,
+        group: state.group,
+      })
+    );
   };
 
   const next = async () => {
@@ -570,6 +588,17 @@ export default function AiQuestionsScreen() {
           </>
         )}
 
+        {/* 「不会」：允许体面跳过，避免用户被迫乱填而污染错因分析 */}
+        {feedback === null && !grading ? (
+          <Button
+            label="不会，跳过本题"
+            icon="help-circle-outline"
+            variant="ghost"
+            onPress={() => void submitUnknown()}
+            style={{ alignSelf: 'stretch', marginTop: spacing.sm }}
+          />
+        ) : null}
+
         {grading ? (
           <View style={styles.gradingRow}>
             <ActivityIndicator color={colors.primary} />
@@ -583,18 +612,44 @@ export default function AiQuestionsScreen() {
           <View
             style={[
               styles.feedbackBox,
-              { borderColor: feedback.isCorrect ? '#A7F3D0' : '#FECACA',
-                backgroundColor: feedback.isCorrect ? '#F0FDF4' : '#FEF2F2' },
+              {
+                borderColor: feedback.isCorrect
+                  ? '#A7F3D0'
+                  : feedback.errorType === 'unknown'
+                  ? '#FDE68A'
+                  : '#FECACA',
+                backgroundColor: feedback.isCorrect
+                  ? '#F0FDF4'
+                  : feedback.errorType === 'unknown'
+                  ? '#FFFBEB'
+                  : '#FEF2F2',
+              },
             ]}
           >
             <View style={styles.feedbackHead}>
               <Ionicons
-                name={feedback.isCorrect ? 'checkmark-circle' : 'close-circle'}
+                name={
+                  feedback.isCorrect
+                    ? 'checkmark-circle'
+                    : feedback.errorType === 'unknown'
+                    ? 'help-circle'
+                    : 'close-circle'
+                }
                 size={20}
-                color={feedback.isCorrect ? colors.success : colors.danger}
+                color={
+                  feedback.isCorrect
+                    ? colors.success
+                    : feedback.errorType === 'unknown'
+                    ? colors.warning
+                    : colors.danger
+                }
               />
               <Text style={styles.feedbackTitle}>
-                {feedback.isCorrect ? '回答正确' : '回答错误'}
+                {feedback.isCorrect
+                  ? '回答正确'
+                  : feedback.errorType === 'unknown'
+                  ? '已记为未掌握'
+                  : '回答错误'}
               </Text>
             </View>
 
@@ -605,7 +660,7 @@ export default function AiQuestionsScreen() {
                 </Text>
                 {feedback.errorType ? (
                   <Text style={styles.feedbackLine}>
-                    错误归因：
+                    {feedback.errorType === 'unknown' ? '记录为：' : '错误归因：'}
                     <Text style={styles.bold}>{ERROR_TYPE_LABEL[feedback.errorType]}</Text>
                   </Text>
                 ) : null}

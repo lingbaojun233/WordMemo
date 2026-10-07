@@ -1,5 +1,6 @@
 import { AiConfig, completeText, extractJson } from '../ai';
 import {
+  AI_ERROR_TYPES,
   AI_ONLY_TYPES,
   Attempt,
   ERROR_TYPE_LABEL,
@@ -11,7 +12,8 @@ import {
 
 // 所有大模型调用集中在此文件；除这里的网络/端侧推理外，其余逻辑全部本地运行。
 
-const ERROR_KEYS = Object.keys(ERROR_TYPE_LABEL) as ErrorType[];
+// 交给 AI 归因的类型不含「未掌握」——那是学习者点「不会」时直接记录的，不需要 AI 猜
+const ERROR_KEYS: ErrorType[] = AI_ERROR_TYPES;
 
 let seq = 0;
 function qid(): string {

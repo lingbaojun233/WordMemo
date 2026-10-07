@@ -174,6 +174,19 @@ export async function gradeAnswer(params: {
   return gradeFreeText({ config, question, userAnswer });
 }
 
+/**
+ * 学习者主动选择「不会」。
+ * 直接记为「未掌握」且**不调用 AI 归因**：既让用户能体面跳过（不必乱填），
+ * 也避免瞎猜的答案把错因分析带偏。
+ */
+export function unknownResult(): GradeResult {
+  return {
+    isCorrect: false,
+    errorType: 'unknown',
+    reason: '选择「不会」，未作答——需先用简单语境巩固基本释义与用法',
+  };
+}
+
 /** 把一次作答写入本地档案：错题记录 + 临时层提示 + 掌握度 */
 export function applyAnswer(params: {
   state: AiqState;
