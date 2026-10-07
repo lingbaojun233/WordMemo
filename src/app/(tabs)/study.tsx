@@ -111,10 +111,16 @@ export default function StudyTab() {
         </>
       ) : null}
 
-      {/* 开始学习 */}
+      {/* 开始/继续学习：今天已经学过则显示「继续」，方便接着学而不是重头开始 */}
       <Button
         label={
-          mode === 'ai_reading'
+          stats.learnedToday > 0
+            ? mode === 'ai_reading'
+              ? '继续阅读学习'
+              : mode === 'ai_questions'
+              ? '继续 AI 出题'
+              : '继续学习'
+            : mode === 'ai_reading'
             ? '开始阅读学习'
             : mode === 'ai_questions'
             ? '开始 AI 出题'

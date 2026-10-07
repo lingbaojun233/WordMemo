@@ -48,11 +48,14 @@ export function Button({
       : colors.primary;
   const border =
     variant === 'outline' ? { borderWidth: 1, borderColor: colors.primary } : {};
+  // 左/右对齐的按钮（如答题选项）让文字占满剩余宽度，确保整行都可点、文字真正靠边
+  const stretchText = textStyle?.textAlign === 'left' || textStyle?.textAlign === 'right';
 
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
+      hitSlop={4}
       style={({ pressed }) => [
         styles.btn,
         { backgroundColor: bg, opacity: pressed ? 0.85 : 1 },
@@ -66,7 +69,11 @@ export function Button({
       ) : (
         <>
           {icon ? <Ionicons name={icon} size={18} color={fg} /> : null}
-          <Text style={[styles.label, { color: fg }, textStyle]}>{label}</Text>
+          <Text
+            style={[styles.label, { color: fg }, stretchText && { flex: 1 }, textStyle]}
+          >
+            {label}
+          </Text>
         </>
       )}
     </Pressable>
@@ -86,6 +93,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
+    flexShrink: 1,
   },
 });
 

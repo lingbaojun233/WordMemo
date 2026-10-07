@@ -72,6 +72,36 @@ export function parsePassage(
   return segments;
 }
 
+/**
+ * 兜底高亮：当模型没按约定给 [[单词]] 标记时，按 glossary 里的词做整词匹配高亮。
+ * 先匹配更长的词，避免子串误匹配（如 "able" 命中 "disable"）。
+ */
+export function highlightWords(passage: string, glossary: Map<string, string>): PassageSegment[] {
+  const keys = Array.from(glossary.keys())
+    .filter((w) => w.length >= 2)
+    .sort((a, b) => b.length - a.length);
+  if (keys.length === 0) return [{ text: passage }];
+
+  const escaped = keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const regex = new RegExp(`\\b(${escaped})\\b`, 'gi');
+
+  const segments: PassageSegment[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(passage)) !== null) {
+    if (m.index > last) segments.push({ text: passage.slice(last, m.index) });
+    const word = m[1];
+    segments.push({
+      text: word,
+      term: word.toLowerCase(),
+      meaning: glossary.get(word.toLowerCase()) ?? '',
+    });
+    last = m.index + m[0].length;
+  }
+  if (last < passage.length) segments.push({ text: passage.slice(last) });
+  return segments.length > 0 ? segments : [{ text: passage }];
+}
+
 /** 从模型返回内容中稳健地提取 JSON 对象 */
 export function extractJson(content: string): unknown {
   const text = content.trim();

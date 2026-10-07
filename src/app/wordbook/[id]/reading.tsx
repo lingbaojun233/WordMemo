@@ -15,6 +15,7 @@ import {
   generatePassage,
   GeneratedPassage,
   getAiConfig,
+  highlightWords,
   parsePassage,
   PassageSegment,
 } from '../../../lib/ai';
@@ -316,7 +317,11 @@ export default function ReadingScreen() {
 
     // 兼容旧会话/AI 返回缺字段的情况，避免 p.glossary 为 undefined 时直接崩
     const glossary = new Map((p.glossary ?? []).map((g) => [g.word, g.meaning]));
-    const segments = parsePassage(p.passage, glossary);
+    const parsed = parsePassage(p.passage, glossary);
+    // 若 AI 没按约定给 [[单词]] 标记，则按 glossary 整词匹配兜底高亮
+    const segments = parsed.some((s) => s.term)
+      ? parsed
+      : highlightWords(p.passage, glossary);
     const isLast = passageIdx + 1 >= passages.length;
     const nextReady = !isLast && passages[passageIdx + 1] != null;
 
@@ -508,8 +513,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     backgroundColor: colors.primaryLight,
     borderRadius: 4,
+    textDecorationLine: 'underline',
   },
-  highlightActive: { backgroundColor: '#C7D2FE', textDecorationLine: 'underline' },
+  highlightActive: {
+    backgroundColor: '#C7D2FE',
+    textDecorationLine: 'underline',
+    fontWeight: '800',
+  },
   tapHint: { fontSize: 12, color: colors.textLight, marginTop: spacing.lg, textAlign: 'center' },
   meaningBar: {
     backgroundColor: colors.card,
