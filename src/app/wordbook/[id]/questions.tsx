@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useApp } from '../../../lib/AppContext';
 import { getAiConfig, LEVEL_DESC } from '../../../lib/ai';
+import { getDeviceModelInfo } from '../../../lib/localModel';
 import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
 import { colors, radius, spacing } from '../../../lib/theme';
 import { Word } from '../../../lib/types';
@@ -132,6 +133,16 @@ export default function GuidedScreen() {
   };
 
   const loadHardRound = async (group: Word[]) => {
+    // 生成高级题前先确认 AI 可用：联网需 Key，设备端需已下载模型
+    if (config.provider === 'online' && !config.apiKey) {
+      throw new Error('请先在「学习设置」中填写联网模型 API Key');
+    }
+    if (config.provider === 'device') {
+      const info = await getDeviceModelInfo(config.modelName);
+      if (!info.downloaded) {
+        throw new Error('设备端模型尚未下载，请先到「学习设置」中下载模型');
+      }
+    }
     const difficulty = targetDifficulty(settings.level, state.attempts);
     const inject = buildInjection(state.entries, { now: Date.now() });
     const qs = await generateAiQuestions({
