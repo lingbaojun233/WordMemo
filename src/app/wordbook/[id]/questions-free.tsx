@@ -369,13 +369,6 @@ export default function AiQuestionsScreen() {
             style={{ alignSelf: 'stretch', marginTop: spacing.md }}
           />
           <Button
-            label="导学模式（先易后难）"
-            variant="outline"
-            icon="compass"
-            onPress={() => router.push(`/wordbook/${book.id}/questions`)}
-            style={{ alignSelf: 'stretch', marginTop: spacing.sm }}
-          />
-          <Button
             label="查看训练档案"
             variant="outline"
             icon="analytics"
