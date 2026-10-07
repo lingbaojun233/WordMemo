@@ -390,13 +390,7 @@ export default function GuidedScreen() {
             onPress={() => router.push(`/wordbook/${book.id}/questions-free`)}
             style={{ alignSelf: 'stretch', marginTop: spacing.sm }}
           />
-          <Button
-            label="查看训练档案"
-            variant="ghost"
-            icon="analytics"
-            onPress={() => router.push('/ai-training')}
-            style={{ alignSelf: 'stretch', marginTop: spacing.sm }}
-          />
+
         </ScrollView>
       </View>
     );
@@ -601,13 +595,7 @@ export default function GuidedScreen() {
             onPress={() => router.push(`/wordbook/${book.id}/questions-free`)}
             style={{ alignSelf: 'stretch', marginTop: spacing.sm }}
           />
-          <Button
-            label="查看训练档案"
-            variant="ghost"
-            icon="analytics"
-            onPress={() => router.push('/ai-training')}
-            style={{ alignSelf: 'stretch', marginTop: spacing.sm }}
-          />
+
         </ScrollView>
       </View>
     );

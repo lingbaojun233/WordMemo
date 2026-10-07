@@ -429,13 +429,7 @@ export default function AiQuestionsScreen() {
             disabled={options.types.length === 0}
             style={{ alignSelf: 'stretch', marginTop: spacing.md }}
           />
-          <Button
-            label="查看训练档案"
-            variant="outline"
-            icon="analytics"
-            onPress={() => router.push('/ai-training')}
-            style={{ alignSelf: 'stretch', marginTop: spacing.sm }}
-          />
+
         </ScrollView>
       </View>
     );
@@ -540,13 +534,7 @@ export default function AiQuestionsScreen() {
             onPress={start}
             style={{ alignSelf: 'stretch', marginTop: spacing.md }}
           />
-          <Button
-            label="查看训练档案"
-            variant="outline"
-            icon="analytics"
-            onPress={() => router.push('/ai-training')}
-            style={{ alignSelf: 'stretch', marginTop: spacing.sm }}
-          />
+
           <Button
             label="返回"
             variant="ghost"

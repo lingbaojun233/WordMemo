@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../lib/AppContext';
@@ -174,6 +174,14 @@ export default function StatsScreen() {
       ) : (
         <Text style={styles.emptyHistory}>还没有 AI 训练记录，去「AI 出题」练一练吧</Text>
       )}
+
+      <Button
+        label="查看完整训练档案"
+        icon="analytics"
+        variant="outline"
+        onPress={() => router.push('/ai-training')}
+        style={{ alignSelf: 'stretch', marginTop: spacing.sm }}
+      />
 
       {/* 每日学习历史（点击查看当天详情） */}
       <Text style={styles.sectionTitle}>每日学习历史</Text>
