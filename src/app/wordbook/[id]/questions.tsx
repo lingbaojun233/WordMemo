@@ -12,6 +12,7 @@ import {
 import { useApp } from '../../../lib/AppContext';
 import { getAiConfig, LEVEL_DESC } from '../../../lib/ai';
 import { getDeviceModelInfo } from '../../../lib/localModel';
+import { dailyPlan } from '../../../lib/goal';
 import { loadStudySettings, StudySettings } from '../../../lib/studySettings';
 import { colors, radius, spacing } from '../../../lib/theme';
 import { Word } from '../../../lib/types';
@@ -142,9 +143,13 @@ export default function GuidedScreen() {
   const start = () => {
     setErrorMsg(null);
     wordStatsRef.current.clear();
-    const gs = buildWordGroups(book.words, state.attempts);
+    // 先学今日未达标剩余所需的新词数，达标后则复习到期单词
+    const daily = dailyPlan({ book, books: wordbooks, settings });
+    const gs = buildWordGroups(book.words, daily.remaining, settings.pickMode);
     if (gs.length === 0) {
-      setErrorMsg('单词本里还没有可学习的单词');
+      setErrorMsg(
+        daily.remaining > 0 ? '今天的新词已学完，暂无新词可学' : '暂无到期单词需要复习'
+      );
       return;
     }
     setGroups(gs);
@@ -442,7 +447,7 @@ export default function GuidedScreen() {
               出题策略：{NEXT_MODE_LABEL[state.nextMode]}（无需手动选择，AI 依据上次表现自动决定）
             </Text>
             <Text style={styles.cardLine}>
-              选词：到期优先 → 高频错词 → 其余；题型先易后难，表现好自动进阶。
+              选词：先学今日剩余新词（按顺序/随机），今日达标后复习到期单词；题型先易后难，表现好自动进阶。
             </Text>
           </View>
 

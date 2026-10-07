@@ -1,6 +1,6 @@
 import { isDue, isGraduated, isNew } from '../srs';
-import { Word } from '../types';
-import { weakTerms } from './errorProfile';
+import { PickMode, Word } from '../types';
+import { shuffle } from '../utils';
 import { Attempt, NextMode, QuestionType } from './types';
 
 // 「导学模式」的纯本地流程参数与决策（除 AI 出题外全部本地计算）。
@@ -12,8 +12,6 @@ import { Attempt, NextMode, QuestionType } from './types';
 //   5) 下次可只测简单题或只测难题，取决于上次结果。
 
 export const GROUP_SIZE = 5;
-/** 单次会话最多学习的单词数（≈ 4 组），避免一次塞入整本词书 */
-export const SESSION_WORD_CAP = 20;
 
 /** 第一轮（简单题）正确率达到该值即进入第二轮难题 */
 export const HARD_ROUND_THRESHOLD = 0.7;
@@ -62,35 +60,38 @@ export function difficultyBias(attempts: Attempt[]): number {
 }
 
 /**
- * 把本次要学的单词切成 5 词一组：先「今日新词」→ 再「到期复习」→ 其余。
- * 每组内部按高频错词排序（错得多、较近的优先）。
+ * 把本次要学的单词切成 5 词一组。
+ * - newWordCount > 0 且还有新词：今日未达标，先学「剩余所需」个新词（box 0）；
+ * - newWordCount <= 0 或没有新词：复习到期单词。
+ * 顺序按 pickMode：sequential 保持词本顺序，random 随机。
  */
 export function buildWordGroups(
   words: Word[],
-  attempts: Attempt[],
-  cap = SESSION_WORD_CAP,
+  newWordCount: number,
+  pickMode: PickMode,
   groupSize = GROUP_SIZE
 ): Word[][] {
   const now = Date.now();
   const active = words.filter((w) => !isGraduated(w));
-  const weak = new Map(weakTerms(attempts, 14, now).map((w) => [w.term, w.wrong]));
-  const rank = (w: Word) => weak.get(w.term.toLowerCase()) ?? 0;
-
   const newWords = active.filter((w) => isNew(w));
   const due = active.filter((w) => !isNew(w) && isDue(w, now));
-  const rest = active.filter((w) => !isNew(w) && !isDue(w, now));
 
-  const list = [
-    ...newWords.sort((a, b) => rank(b) - rank(a)),
-    ...due.sort((a, b) => rank(b) - rank(a) || a.dueAt - b.dueAt),
-    ...rest.sort((a, b) => rank(b) - rank(a)),
-  ].slice(0, cap);
+  let list: Word[];
+  if (newWordCount > 0 && newWords.length > 0) {
+    list = orderWords(newWords, pickMode).slice(0, Math.min(newWordCount, newWords.length));
+  } else {
+    list = orderWords(due, pickMode);
+  }
 
   const groups: Word[][] = [];
   for (let i = 0; i < list.length; i += groupSize) {
     groups.push(list.slice(i, i + groupSize));
   }
   return groups;
+}
+
+function orderWords(list: Word[], pickMode: PickMode): Word[] {
+  return pickMode === 'random' ? shuffle(list) : list;
 }
 
 /** 第一轮是否表现足够好，进入第二轮难题 */
