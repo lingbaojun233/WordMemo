@@ -340,6 +340,7 @@ function Stepper({
           keyboardType="number-pad"
           selectTextOnFocus
           maxLength={4}
+          multiline={false}
           scrollEnabled={false}
         />
         <Pressable
@@ -403,14 +404,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepInput: {
-    minWidth: 80,
-    height: 36,
-    paddingHorizontal: 8,
+    width: 72,
+    paddingVertical: 7,
+    paddingHorizontal: 4,
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
-    textAlignVertical: 'center',
     backgroundColor: colors.card,
     borderRadius: radius.sm,
     borderWidth: 1,
