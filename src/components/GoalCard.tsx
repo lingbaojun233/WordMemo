@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GoalPlan } from '../lib/goal';
 import { GoalType, StudySettings } from '../lib/studySettings';
 import { colors, radius, spacing } from '../lib/theme';
 import { formatDate, startOfToday } from '../lib/utils';
 import { Button } from './ui';
+import { Stepper } from './Stepper';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -254,65 +255,6 @@ function GoalTypeChip({
   );
 }
 
-function Stepper({
-  label,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (v: number) => void;
-}) {
-  const [text, setText] = useState<string | null>(null);
-
-  const commit = () => {
-    if (text == null) return;
-    setText(null);
-    const n = parseInt(text, 10);
-    if (Number.isNaN(n)) return;
-    onChange(Math.max(min, Math.min(max, n)));
-  };
-
-  return (
-    <View style={styles.stepperRow}>
-      <Text style={styles.stepperLabel}>{label}</Text>
-      <View style={styles.stepper}>
-        <Pressable
-          style={({ pressed }) => [styles.stepBtn, pressed && { opacity: 0.6 }]}
-          onPress={() => onChange(Math.max(min, value - step))}
-          hitSlop={6}
-        >
-          <Ionicons name="remove" size={18} color={colors.text} />
-        </Pressable>
-        <TextInput
-          style={styles.stepInput}
-          value={text ?? String(value)}
-          onChangeText={setText}
-          onBlur={commit}
-          onSubmitEditing={commit}
-          keyboardType="number-pad"
-          selectTextOnFocus
-          maxLength={4}
-          scrollEnabled={false}
-        />
-        <Pressable
-          style={({ pressed }) => [styles.stepBtn, pressed && { opacity: 0.6 }]}
-          onPress={() => onChange(Math.min(max, value + step))}
-          hitSlop={6}
-        >
-          <Ionicons name="add" size={18} color={colors.text} />
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.card,
@@ -373,31 +315,4 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 13, color: colors.textMuted },
   chipTextActive: { color: '#fff', fontWeight: '600' },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  stepperLabel: { fontSize: 15, color: colors.text, fontWeight: '500' },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  stepBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepInput: {
-    minWidth: 80,
-    height: 36,
-    paddingHorizontal: 8,
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    backgroundColor: colors.card,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
 });

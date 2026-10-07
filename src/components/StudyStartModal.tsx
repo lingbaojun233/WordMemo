@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StudyMode, StudySettings } from '../lib/studySettings';
 import { colors, radius, spacing } from '../lib/theme';
 import { PickMode } from '../lib/types';
 import { Button } from './ui';
+import { Stepper } from './Stepper';
 
 const MODES: {
   key: StudyMode;
@@ -115,66 +116,6 @@ export function StudyStartModal({
   );
 }
 
-function Stepper({
-  label,
-  value,
-  min,
-  max,
-  step = 1,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  onChange: (v: number) => void;
-}) {
-  const [text, setText] = useState<string | null>(null);
-
-  const commit = () => {
-    if (text == null) return;
-    setText(null);
-    const n = parseInt(text, 10);
-    if (Number.isNaN(n)) return;
-    onChange(Math.max(min, Math.min(max, n)));
-  };
-
-  return (
-    <View style={styles.stepperRow}>
-      <Text style={styles.stepperLabel}>{label}</Text>
-      <View style={styles.stepper}>
-        <Pressable
-          style={({ pressed }) => [styles.stepBtn, pressed && { opacity: 0.6 }]}
-          onPress={() => onChange(Math.max(min, value - step))}
-          hitSlop={6}
-        >
-          <Ionicons name="remove" size={18} color={colors.text} />
-        </Pressable>
-        <TextInput
-          style={styles.stepInput}
-          value={text ?? String(value)}
-          onChangeText={setText}
-          onBlur={commit}
-          onSubmitEditing={commit}
-          keyboardType="number-pad"
-          selectTextOnFocus
-          maxLength={4}
-          multiline={false}
-          scrollEnabled={false}
-        />
-        <Pressable
-          style={({ pressed }) => [styles.stepBtn, pressed && { opacity: 0.6 }]}
-          onPress={() => onChange(Math.min(max, value + step))}
-          hitSlop={6}
-        >
-          <Ionicons name="add" size={18} color={colors.text} />
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -206,31 +147,5 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text },
   soonText: { fontSize: 12, color: colors.textLight },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.sm },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  stepperLabel: { fontSize: 15, color: colors.text, fontWeight: '500' },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  stepBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepInput: {
-    width: 72,
-    paddingVertical: 7,
-    paddingHorizontal: 4,
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-    backgroundColor: colors.card,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
 });
