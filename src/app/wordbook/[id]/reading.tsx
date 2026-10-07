@@ -62,6 +62,8 @@ export default function ReadingScreen() {
   // 并发闸门：恢复上次会话 与 用户点「开始阅读」可能同时触发生成，
   // 而对同一个本地模型上下文并发推理会让原生层直接抛异常
   const generatingRef = useRef(false);
+  // 答题闸门：防止连点导致同一题被判定两次、进度错乱
+  const answeredRef = useRef(false);
 
   useEffect(() => {
     loadStudySettings().then(setSettings);
@@ -222,19 +224,24 @@ export default function ReadingScreen() {
   };
 
   const answerQuiz = (option: string) => {
-    if (picked) return;
-    setPicked(option);
+    // picked 是异步 state，快速连点两次会都通过判断：这里用 ref 做同步闸门
+    if (picked || answeredRef.current) return;
     const q = quiz[quizIdx];
+    if (!q) return;
+    answeredRef.current = true;
+    setPicked(option);
     const isCorrect = option === q.correct;
     if (isCorrect) setCorrectCount((c) => c + 1);
     reviewWord(book.id, q.id, isCorrect ? 'good' : 'again');
     setTimeout(() => {
+      answeredRef.current = false;
       if (quizIdx + 1 < quiz.length) {
         setQuizIdx(quizIdx + 1);
         setPicked(null);
       } else {
         const key = sessionKeyRef.current;
-        if (key) clearReadingSession(key.userId, key.bookId);
+        // 清会话是异步的，失败也不该让「完成」流程中断
+        if (key) clearReadingSession(key.userId, key.bookId).catch(() => {});
         setPhase('result');
       }
     }, 800);
@@ -307,7 +314,8 @@ export default function ReadingScreen() {
       );
     }
 
-    const glossary = new Map(p.glossary.map((g) => [g.word, g.meaning]));
+    // 兼容旧会话/AI 返回缺字段的情况，避免 p.glossary 为 undefined 时直接崩
+    const glossary = new Map((p.glossary ?? []).map((g) => [g.word, g.meaning]));
     const segments = parsePassage(p.passage, glossary);
     const isLast = passageIdx + 1 >= passages.length;
     const nextReady = !isLast && passages[passageIdx + 1] != null;
@@ -427,7 +435,16 @@ export default function ReadingScreen() {
           <SummaryRow label="答对" value={`${correctCount} 词`} />
           <SummaryRow label="正确率" value={`${accuracy}%`} />
         </View>
-        <Button label="完成" icon="checkmark" onPress={() => router.back()} style={{ alignSelf: 'stretch' }} />
+        <Button
+          label="完成"
+          icon="checkmark"
+          onPress={() => {
+            // 直接 back() 在没有上一页时会报 GO_BACK 未处理，这里按全局返回按钮的方式兜底
+            if (router.canGoBack()) router.back();
+            else router.replace('/');
+          }}
+          style={{ alignSelf: 'stretch' }}
+        />
       </View>
     </View>
   );
